@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { ChangeRoleModal } from '@/components/admin/ChangeRoleModal'
+import { DeleteUserDialog } from '@/components/admin/DeleteUserDialog'
 import { AssignLeaderModal } from '@/components/admin/AssignLeaderModal'
 import { TeamAssignmentModal } from '@/components/team/TeamAssignmentModal'
 import { EditTaskModal } from '@/components/tasks/EditTaskModal'
@@ -36,6 +37,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { RichText, LinkifiedText, Highlight, richTextToPlain } from '@/components/common/RichText'
+import { Hint } from '@/components/ui/tooltip'
 
 interface AdminDashboardProps {
   initialTab?: string
@@ -60,6 +62,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // Modals state
   const [roleModalUser, setRoleModalUser] = useState<Profile | null>(null)
+  const [deletingUser, setDeletingUser] = useState<Profile | null>(null)
   const [assignModalEmployee, setAssignModalEmployee] = useState<Profile | null>(null)
   const [teamLeaderToManage, setTeamLeaderToManage] = useState<Profile | null>(null)
   const [editingTask, setEditingTask] = useState<TaskLog | null>(null)
@@ -569,31 +572,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                             <td className="px-4 py-3 whitespace-nowrap text-center">
                               <div className="flex items-center justify-center gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7 text-slate-400 hover:text-blue-600"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setModalMode('edit')
-                                    setEditingTask(t)
-                                  }}
-                                  title="Edit task log"
-                                >
-                                  <Pencil className="h-3.5 w-3.5" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7 text-slate-400 hover:text-rose-600"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setDeletingTask(t)
-                                  }}
-                                  title="Delete task log"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </Button>
+                                <Hint label="Edit task log">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 text-slate-400 hover:text-blue-600"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setModalMode('edit')
+                                      setEditingTask(t)
+                                    }}
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </Button>
+                                </Hint>
+                                <Hint label="Delete task log">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 text-slate-400 hover:text-rose-600"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setDeletingTask(t)
+                                    }}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </Hint>
                               </div>
                             </td>
                           </tr>
@@ -735,6 +740,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   Assign Leader
                                 </Button>
                               )}
+
+                              {/* Own row: shown but disabled; the wrapper keeps the tooltip working on a disabled button */}
+                              <Hint label={p.id === user?.id ? "You can't delete your own account" : `Delete ${p.name}`}>
+                                <span
+                                  tabIndex={p.id === user?.id ? 0 : undefined}
+                                  className={p.id === user?.id ? 'inline-flex cursor-not-allowed' : 'inline-flex'}
+                                >
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setDeletingUser(p)}
+                                    disabled={p.id === user?.id}
+                                    className="h-7 w-7 p-0 text-slate-400 border-slate-200 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50"
+                                    aria-label={p.id === user?.id ? "You can't delete your own account" : `Delete ${p.name}`}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </span>
+                              </Hint>
                             </div>
                           </td>
                         </tr>
@@ -843,6 +867,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       </Tabs>
 
       {/* Role Change Modal */}
+      <DeleteUserDialog
+        user={deletingUser}
+        onOpenChange={(open) => {
+          if (!open) setDeletingUser(null)
+        }}
+        onUserDeleted={loadAllData}
+      />
+
       <ChangeRoleModal
         userToEdit={roleModalUser}
         open={Boolean(roleModalUser)}

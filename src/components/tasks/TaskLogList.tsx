@@ -24,6 +24,7 @@ import {
 import { toast } from 'sonner'
 import { format, parseISO } from 'date-fns'
 import { RichText, LinkifiedText, Highlight, richTextToPlain } from '@/components/common/RichText'
+import { Hint } from '@/components/ui/tooltip'
 
 interface TaskLogListProps {
   tasks: TaskLog[]
@@ -209,15 +210,16 @@ export const TaskLogList: React.FC<TaskLogListProps> = ({
             {/* Reset Filter Button */}
             {(searchQuery || startDate || endDate) && (
               <div className="sm:col-span-1 flex items-center">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleClearFilters}
-                  title="Clear all filters"
-                  className="h-10 w-10 text-slate-500 hover:text-slate-900"
-                >
-                  <FilterX className="h-4 w-4" />
-                </Button>
+                <Hint label="Clear all filters">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleClearFilters}
+                    className="h-10 w-10 text-slate-500 hover:text-slate-900"
+                  >
+                    <FilterX className="h-4 w-4" />
+                  </Button>
+                </Hint>
               </div>
             )}
           </div>
@@ -328,31 +330,33 @@ export const TaskLogList: React.FC<TaskLogListProps> = ({
                         {/* Actions (Edit / Delete) */}
                         {canManage && (
                           <div className="flex items-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-slate-400 hover:text-blue-600"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setModalMode('edit')
-                                setEditingTask(task)
-                              }}
-                              title="Edit task log"
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-slate-400 hover:text-rose-600"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setDeletingTask(task)
-                              }}
-                              title="Delete task log"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
+                            <Hint label="Edit task log">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-slate-400 hover:text-blue-600"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setModalMode('edit')
+                                  setEditingTask(task)
+                                }}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                            </Hint>
+                            <Hint label="Delete task log">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-slate-400 hover:text-rose-600"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setDeletingTask(task)
+                                }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </Hint>
                           </div>
                         )}
                       </div>

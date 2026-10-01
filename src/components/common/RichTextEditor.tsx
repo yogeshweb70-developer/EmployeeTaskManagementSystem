@@ -14,6 +14,7 @@ import {
   X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Hint } from '@/components/ui/tooltip'
 
 interface RichTextEditorProps {
   value: string
@@ -36,20 +37,21 @@ const ToolbarButton: React.FC<{
   title: string
   children: React.ReactNode
 }> = ({ onClick, active, title, children }) => (
-  <button
-    type="button"
-    title={title}
-    aria-label={title}
-    aria-pressed={active}
-    onMouseDown={(e) => e.preventDefault()}
-    onClick={onClick}
-    className={cn(
-      'flex h-7 w-7 items-center justify-center rounded-md text-slate-600 transition-colors hover:bg-slate-100 cursor-pointer',
-      active && 'bg-blue-50 text-blue-600'
-    )}
-  >
-    {children}
-  </button>
+  <Hint label={title}>
+    <button
+      type="button"
+      aria-label={title}
+      aria-pressed={active}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={onClick}
+      className={cn(
+        'flex h-7 w-7 items-center justify-center rounded-md text-slate-600 transition-colors hover:bg-slate-100 cursor-pointer',
+        active && 'bg-blue-50 text-blue-600'
+      )}
+    >
+      {children}
+    </button>
+  </Hint>
 )
 
 export const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange, placeholder, className, invalid }) => {
@@ -187,12 +189,16 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange,
             placeholder="Paste or type a link, e.g. zeroado.com"
             className="flex-1 bg-transparent text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none"
           />
-          <button type="button" onClick={applyLink} title="Apply link" className="rounded p-1 text-blue-600 hover:bg-blue-50 cursor-pointer">
-            <Check className="h-3.5 w-3.5" />
-          </button>
-          <button type="button" onClick={() => setIsLinkInputOpen(false)} title="Cancel" className="rounded p-1 text-slate-500 hover:bg-slate-100 cursor-pointer">
-            <X className="h-3.5 w-3.5" />
-          </button>
+          <Hint label="Apply link">
+            <button type="button" onClick={applyLink} aria-label="Apply link" className="rounded p-1 text-blue-600 hover:bg-blue-50 cursor-pointer">
+              <Check className="h-3.5 w-3.5" />
+            </button>
+          </Hint>
+          <Hint label="Cancel">
+            <button type="button" onClick={() => setIsLinkInputOpen(false)} aria-label="Cancel" className="rounded p-1 text-slate-500 hover:bg-slate-100 cursor-pointer">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </Hint>
         </div>
       )}
 

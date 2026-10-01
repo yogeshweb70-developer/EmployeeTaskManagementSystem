@@ -31,6 +31,7 @@ import {
 import { toast } from 'sonner'
 import { format, parseISO } from 'date-fns'
 import { RichText, LinkifiedText, Highlight, richTextToPlain } from '@/components/common/RichText'
+import { Hint } from '@/components/ui/tooltip'
 
 interface TeamLeaderDashboardProps {
   initialTab?: string
@@ -285,15 +286,16 @@ export const TeamLeaderDashboard: React.FC<TeamLeaderDashboardProps> = ({
                         </div>
                       </div>
 
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleRemoveEmployee(emp.id, emp.name)}
-                        className="text-slate-400 hover:text-rose-600 h-8 w-8"
-                        title="Remove from team"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                      <Hint label="Remove from team">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleRemoveEmployee(emp.id, emp.name)}
+                          className="text-slate-400 hover:text-rose-600 h-8 w-8"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </Hint>
                     </div>
                   ))}
                 </div>

@@ -152,6 +152,29 @@ export const dataService = {
     return profiles[index]
   },
 
+  // Permanently removes the user's login, profile, task logs and team assignments
+  async deleteUser(targetUserId: string, requesterId: string, requesterRole: UserRole): Promise<void> {
+    if (requesterRole !== 'admin') {
+      throw new Error('Unauthorized: Only administrators can delete users.')
+    }
+    if (targetUserId === requesterId) {
+      throw new Error('You cannot delete your own account.')
+    }
+
+    if (isSupabaseConfigured()) {
+      const { error } = await supabase.rpc('admin_delete_user', { target_user_id: targetUserId })
+      if (error) throw error
+      return
+    }
+
+    // Local-only mode (no Supabase configured)
+    saveProfiles(getStoredProfiles().filter((p) => p.id !== targetUserId))
+    saveAssignments(
+      getStoredAssignments().filter((a) => a.employee_id !== targetUserId && a.team_leader_id !== targetUserId)
+    )
+    saveTasks(getStoredTasks().filter((t) => t.user_id !== targetUserId))
+  },
+
   // --------------------------------------------------------------------------
   // TEAM ASSIGNMENTS
   // --------------------------------------------------------------------------
@@ -483,15 +506,6 @@ export const dataService = {
     requesterId: string,
     requesterRole: UserRole
   ): Promise<TaskLog> {
-    const tasks = getStoredTasks()
-    const target = tasks.find((t) => t.id === logId)
-    if (!target) throw new Error('Task log not found.')
-
-    // RLS: Only owner or admin can update
-    if (target.user_id !== requesterId && requesterRole !== 'admin') {
-      throw new Error('Unauthorized: You can only update your own task logs.')
-    }
-
     if (updates.work_date) {
       const todayStr = getTodayDateString()
       if (updates.work_date > todayStr) {
@@ -508,23 +522,30 @@ export const dataService = {
     }
 
     if (isSupabaseConfigured()) {
-      try {
-        const { data, error } = await supabase
-          .from('task_logs')
-          .update({
-            ...(updates.task_name !== undefined ? { task_name: updates.task_name.trim() } : {}),
-            ...(updates.task_description !== undefined ? { task_description: updates.task_description } : {}),
-            ...(updates.duration_minutes !== undefined ? { duration_minutes: updates.duration_minutes } : {}),
-            ...(updates.work_date !== undefined ? { work_date: updates.work_date } : {}),
-          })
-          .eq('id', logId)
-          .select('*, profiles(*)')
-          .single()
-        if (error) throw error
-        return data as TaskLog
-      } catch (err) {
-        console.warn('Falling back to local storage for updateTaskLog:', err)
+      const { data, error } = await supabase
+        .from('task_logs')
+        .update({
+          ...(updates.task_name !== undefined ? { task_name: updates.task_name.trim() } : {}),
+          ...(updates.task_description !== undefined ? { task_description: updates.task_description } : {}),
+          ...(updates.duration_minutes !== undefined ? { duration_minutes: updates.duration_minutes } : {}),
+          ...(updates.work_date !== undefined ? { work_date: updates.work_date } : {}),
+        })
+        .eq('id', logId)
+        .select('*, profiles(*)')
+      if (error) throw error
+      // RLS returns no row when the user may not edit this log
+      if (!data || data.length === 0) {
+        throw new Error('You can only update your own task logs, or the task no longer exists.')
       }
+      return data[0] as TaskLog
+    }
+
+    // Local-only mode (no Supabase configured)
+    const tasks = getStoredTasks()
+    const target = tasks.find((t) => t.id === logId)
+    if (!target) throw new Error('Task log not found.')
+    if (target.user_id !== requesterId && requesterRole !== 'admin') {
+      throw new Error('Unauthorized: You can only update your own task logs.')
     }
 
     const index = tasks.findIndex((t) => t.id === logId)
@@ -555,23 +576,22 @@ export const dataService = {
   },
 
   async deleteTaskLog(logId: string, requesterId: string, requesterRole: UserRole): Promise<void> {
+    if (isSupabaseConfigured()) {
+      // RLS (owner or admin) decides; .select() tells us whether a row was actually removed
+      const { data, error } = await supabase.from('task_logs').delete().eq('id', logId).select('id')
+      if (error) throw error
+      if (!data || data.length === 0) {
+        throw new Error('You can only delete your own task logs, or the task no longer exists.')
+      }
+      return
+    }
+
+    // Local-only mode (no Supabase configured)
     const tasks = getStoredTasks()
     const target = tasks.find((t) => t.id === logId)
     if (!target) return
-
-    // RLS: Only owner or admin can delete
     if (target.user_id !== requesterId && requesterRole !== 'admin') {
       throw new Error('Unauthorized: You can only delete your own task logs.')
-    }
-
-    if (isSupabaseConfigured()) {
-      try {
-        const { error } = await supabase.from('task_logs').delete().eq('id', logId)
-        if (error) throw error
-        return
-      } catch (err) {
-        console.warn('Falling back to local storage for deleteTaskLog:', err)
-      }
     }
 
     const filtered = tasks.filter((t) => t.id !== logId)

@@ -380,3 +380,38 @@ DROP POLICY IF EXISTS "Users can delete their own avatar" ON storage.objects;
 CREATE POLICY "Users can delete their own avatar"
     ON storage.objects FOR DELETE TO authenticated
     USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text);
+
+-- ==============================================================================
+-- Admin: delete a user (auth account + profile; task logs and team assignments cascade)
+-- Called from the app with supabase.rpc('admin_delete_user', { target_user_id })
+-- ==============================================================================
+
+CREATE OR REPLACE FUNCTION public.admin_delete_user(target_user_id UUID)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+    IF NOT public.is_admin() THEN
+        RAISE EXCEPTION 'Only admins can delete users.';
+    END IF;
+
+    IF target_user_id = auth.uid() THEN
+        RAISE EXCEPTION 'You cannot delete your own account.';
+    END IF;
+
+    IF (SELECT role FROM public.profiles WHERE id = target_user_id) = 'admin'
+       AND (SELECT count(*) FROM public.profiles WHERE role = 'admin') <= 1 THEN
+        RAISE EXCEPTION 'Cannot delete the last admin.';
+    END IF;
+
+    DELETE FROM auth.users WHERE id = target_user_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'User not found.';
+    END IF;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.admin_delete_user(UUID) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_delete_user(UUID) TO authenticated;

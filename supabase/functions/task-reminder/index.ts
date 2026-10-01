@@ -34,12 +34,13 @@ function escapeHtml(text: string): string {
 function reminderEmail(name: string, date: string, appUrl: string) {
   const firstName = escapeHtml(name.split(' ')[0] || name)
   const displayDate = formatDateDDMMYYYY(date)
-  const subject = `Reminder: log your tasks for ${displayDate}`
-  const text = `Hi ${firstName},
+  const subject = `Reminder: You haven’t logged today’s tasks! - ${displayDate}`
+  const text = `Hi ${firstName},<br>
+  Don’t forget to log your tasks for today.
 
-You haven't logged any tasks for today (${displayDate}) yet.
+You haven’t logged any tasks for (${displayDate}) yet.
 
-Please add today's task log before the day ends: ${appUrl}
+Please add your task entries before the end of the day. Tasks can only be logged for the current day. ${appUrl}
 
 Tasks can only be logged for the current day, so today's entries can't be added tomorrow.
 
@@ -56,18 +57,21 @@ Zeroado`
             <tr>
               <td style="padding:32px;">
                 <img src="${appUrl}/img/logo/zeroado-logo.png" alt="Zeroado" height="32" style="display:block;height:32px;margin-bottom:24px;" />
-                <h1 style="margin:0 0 12px;font-size:20px;line-height:28px;color:#061237;">Hi ${firstName}, don't forget today's task log</h1>
+                <h1 style="margin:0 0 12px;font-size:20px;line-height:28px;color:#061237;">Hi ${firstName},</h1> 
                 <p style="margin:0 0 16px;font-size:14px;line-height:22px;color:#334155;">
-                  You haven't logged any tasks for <strong>${displayDate}</strong> yet.
+                  Don’t forget to log your tasks for today.
+                </p>
+                <p style="margin:0 0 16px;font-size:14px;line-height:22px;color:#334155;">
+                  You haven’t logged any tasks for <strong>${displayDate}</strong> yet.
                 </p>
                 <p style="margin:0 0 24px;font-size:14px;line-height:22px;color:#334155;">
-                  Tasks can only be logged for the current day, so please add today's entries before the day ends.
+                  Please add your task entries before the end of the day. Tasks can only be logged for the current day.
                 </p>
                 <a href="${appUrl}" style="display:inline-block;background:#0156ff;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:12px 24px;border-radius:100px;">
-                  Log Today's Tasks
+                  Log Today’s Tasks
                 </a>
                 <p style="margin:24px 0 0;font-size:12px;line-height:18px;color:#64748b;">
-                  You're receiving this because no task was logged for today. Once you log a task, reminders stop for that day.
+                  You’re receiving this reminder because no tasks have been logged for today. Once you log at least one task, you won’t receive any more reminders for today.
                 </p>
               </td>
             </tr>

@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { SpotlightCard } from '@/components/react-bits/SpotlightCard'
 import { ShieldCheck, Mail, Calendar, Key, UserCheck, Briefcase, LogOut, Camera, RotateCcw, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { Hint } from '@/components/ui/tooltip'
 
 export const ProfileView: React.FC = () => {
   const { user, signOut, approvedDomain, uploadAvatar, resetToGoogleAvatar } = useAuth()
@@ -48,23 +49,24 @@ export const ProfileView: React.FC = () => {
         <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-5">
             <div className="flex flex-col items-center gap-2">
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isSavingPhoto}
-                className="group relative rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
-                title="Change profile photo"
-              >
-                <Avatar className="h-20 w-20 ring-4 ring-blue-500/10 shadow-md">
-                  <AvatarImage src={user.avatar_url} alt={user.name} />
-                  <AvatarFallback className="text-2xl font-bold bg-blue-100 text-blue-700">
-                    {user.name.substring(0, 2).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="absolute inset-0 flex items-center justify-center rounded-full bg-slate-900/50 text-white opacity-0 transition-opacity group-hover:opacity-100">
-                  {isSavingPhoto ? <Loader2 className="h-5 w-5 animate-spin" /> : <Camera className="h-5 w-5" />}
-                </span>
-              </button>
+              <Hint label="Change profile photo">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isSavingPhoto}
+                  className="group relative rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
+                >
+                  <Avatar className="h-20 w-20 ring-4 ring-blue-500/10 shadow-md">
+                    <AvatarImage src={user.avatar_url} alt={user.name} />
+                    <AvatarFallback className="text-2xl font-bold bg-blue-100 text-blue-700">
+                      {user.name.substring(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="absolute inset-0 flex items-center justify-center rounded-full bg-slate-900/50 text-white opacity-0 transition-opacity group-hover:opacity-100">
+                    {isSavingPhoto ? <Loader2 className="h-5 w-5 animate-spin" /> : <Camera className="h-5 w-5" />}
+                  </span>
+                </button>
+              </Hint>
               <input
                 ref={fileInputRef}
                 type="file"
