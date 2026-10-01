@@ -5,7 +5,7 @@
 //   SMTP_USER     yogesh@zeroado.com
 //   SMTP_PASS     Google App Password for that account
 //   CRON_SECRET   random string; the cron job sends it in the x-cron-secret header
-//   APP_URL       link in the email, e.g. https://employeetaskmanagementsystem-5w.vercel.app
+//   APP_URL       link in the email, e.g. https://tasks.stagex.dev/
 // Provided automatically by Supabase: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 //
 // Add ?dryRun=1 to list who would be emailed without sending anything.
