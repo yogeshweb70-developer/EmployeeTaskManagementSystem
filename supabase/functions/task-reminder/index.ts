@@ -15,6 +15,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import nodemailer from 'npm:nodemailer@6'
 
 const FROM_NAME = 'Zeroado'
+const ALLOWED_TEST_DOMAIN = '@zeroado.com'
 const REMINDER_ROLES = ['employee', 'team_leader']
 
 // Today's date in India as YYYY-MM-DD (task work_date is saved in the user's local date)
@@ -85,15 +86,29 @@ Zeroado`
   return { subject, text, html }
 }
 
+// Constant-time comparison so the secret can't be guessed from response timing
+function safeEqual(a: string, b: string): boolean {
+  const enc = new TextEncoder()
+  const x = enc.encode(a)
+  const y = enc.encode(b)
+  let diff = x.length ^ y.length
+  for (let i = 0; i < Math.max(x.length, y.length); i++) diff |= (x[i] ?? 0) ^ (y[i] ?? 0)
+  return diff === 0
+}
+
 Deno.serve(async (req) => {
   const cronSecret = Deno.env.get('CRON_SECRET')
-  if (!cronSecret || req.headers.get('x-cron-secret') !== cronSecret) {
+  if (!cronSecret || !safeEqual(req.headers.get('x-cron-secret') ?? '', cronSecret)) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
   }
 
   const params = new URL(req.url).searchParams
   const dryRun = params.get('dryRun') === '1'
-  const testTo = params.get('testTo')
+  const testTo = params.get('testTo')?.trim().toLowerCase() ?? null
+  // Test sends only to company inboxes, so a leaked secret can't be used to email outsiders
+  if (testTo && (!testTo.endsWith(ALLOWED_TEST_DOMAIN) || testTo.includes(',') || testTo.includes(' '))) {
+    return new Response(JSON.stringify({ error: `testTo must be a single ${ALLOWED_TEST_DOMAIN} address` }), { status: 400 })
+  }
   const appUrl = (Deno.env.get('APP_URL') || '').replace(/\/$/, '')
   const smtpUser = Deno.env.get('SMTP_USER')
   const smtpPass = Deno.env.get('SMTP_PASS')
