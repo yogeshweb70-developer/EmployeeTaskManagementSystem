@@ -55,7 +55,7 @@ Zeroado`
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border:1px solid #e3e8ef;border-radius:16px;">
             <tr>
               <td style="padding:32px;">
-                <img src="${appUrl}/zeroado-logo.png" alt="Zeroado" height="32" style="display:block;height:32px;margin-bottom:24px;" />
+                <img src="${appUrl}/img/logo/zeroado-logo.png" alt="Zeroado" height="32" style="display:block;height:32px;margin-bottom:24px;" />
                 <h1 style="margin:0 0 12px;font-size:20px;line-height:28px;color:#061237;">Hi ${firstName}, don't forget today's task log</h1>
                 <p style="margin:0 0 16px;font-size:14px;line-height:22px;color:#334155;">
                   You haven't logged any tasks for <strong>${displayDate}</strong> yet.
