@@ -1,0 +1,9 @@
+-- ==============================================================================
+-- Clean Seed File for Zeroado Task Log Management System
+-- ==============================================================================
+-- Dummy seed data has been removed per company requirements.
+-- Real user profiles are created automatically via Supabase Auth & Google OAuth
+-- upon first login from @zeroado.com company accounts.
+--
+-- The first @zeroado.com employee to log in will be granted the 'admin' role
+-- automatically, allowing them to manage user roles and team assignments.
