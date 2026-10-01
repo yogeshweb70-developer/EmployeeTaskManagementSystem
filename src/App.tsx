@@ -15,7 +15,7 @@ const MainApp: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<string>('dashboard')
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
-  // Synchronize default tab on role switch
+  // Synchronize default tab on role switch 
   useEffect(() => {
     if (user) {
       setCurrentTab('dashboard')
