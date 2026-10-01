@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { useAuth } from '@/context/AuthContext'
 import { dataService } from '@/services/dataService'
 import { Profile, TaskLog, TeamAssignment, DashboardMetrics, UserRole } from '@/types'
-import { formatMinutes } from '@/lib/utils'
+import { formatMinutes, getTodayDateString, getWeekStartDateString, getMonthStartDateString, daysActiveSince } from '@/lib/utils'
 import { SpotlightCard } from '@/components/react-bits/SpotlightCard'
 import { BlurText } from '@/components/react-bits/BlurText'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -24,6 +24,7 @@ import {
   Shield,
   Layers,
   Search,
+  CalendarDays,
   FilterX,
   Plus,
   Pencil,
@@ -107,8 +108,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const employeesList = useMemo(() => profiles.filter((p) => p.role === 'employee'), [profiles])
   const teamLeadersList = useMemo(() => profiles.filter((p) => p.role === 'team_leader'), [profiles])
 
-  // Filtered task logs
-  const filteredTasks = useMemo(() => {
+  // Tasks for the selected employee / team leader (no date or search filter)
+  const scopedTasks = useMemo(() => {
     return taskLogs.filter((task) => {
       // Employee filter
       if (filterEmployeeId !== 'all' && task.user_id !== filterEmployeeId) {
@@ -123,6 +124,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         )
         if (!isLeader && !isAssigned) return false
       }
+
+      return true
+    })
+  }, [taskLogs, filterEmployeeId, filterLeaderId, assignments])
+
+  // Filtered task logs
+  const filteredTasks = useMemo(() => {
+    return scopedTasks.filter((task) => {
 
       // Date range filter
       if (filterStartDate && task.work_date < filterStartDate) return false
@@ -139,7 +148,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       return true
     })
-  }, [taskLogs, filterEmployeeId, filterLeaderId, filterStartDate, filterEndDate, filterSearch, assignments])
+  }, [scopedTasks, filterStartDate, filterEndDate, filterSearch])
 
   // Filtered users
   const filteredProfiles = useMemo(() => {
@@ -159,6 +168,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const periodTotalMinutes = useMemo(() => {
     return filteredTasks.reduce((acc, t) => acc + t.duration_minutes, 0)
   }, [filteredTasks])
+
+  // Weekly card appears after 7 days of activity, monthly after 30 (counted from the first logged task)
+  const periodSummary = useMemo(() => {
+    const today = getTodayDateString()
+    if (scopedTasks.length === 0) return { showWeekly: false, showMonthly: false, weekMinutes: 0, monthMinutes: 0 }
+    const firstLogDate = scopedTasks.reduce((min, t) => (t.work_date < min ? t.work_date : min), today)
+    const activeDays = daysActiveSince(firstLogDate, today)
+    const weekStart = getWeekStartDateString()
+    const monthStart = getMonthStartDateString()
+    let weekMinutes = 0
+    let monthMinutes = 0
+    for (const t of scopedTasks) {
+      if (t.work_date >= weekStart && t.work_date <= today) weekMinutes += t.duration_minutes
+      if (t.work_date >= monthStart && t.work_date <= today) monthMinutes += t.duration_minutes
+    }
+    return { showWeekly: activeDays >= 7, showMonthly: activeDays >= 30, weekMinutes, monthMinutes }
+  }, [scopedTasks])
 
   // Map employee ID to their Team Leader object
   const getLeaderForEmployee = (empId: string): Profile | null => {
@@ -327,15 +353,43 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     Comprehensive log entries across all historical dates and employees
                   </CardDescription>
                 </div>
-                <div className="flex items-center gap-2 rounded-xl border border-blue-100 bg-blue-50/70 px-4 py-1.5">
-                  <Clock className="h-4 w-4 text-blue-600" />
-                  <div>
-                    <span className="text-[10px] uppercase font-semibold text-blue-600 block">
-                      Period Total Hours
-                    </span>
-                    <span className="text-sm font-bold text-blue-950 font-mono">
-                      {formatMinutes(periodTotalMinutes)}
-                    </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  {periodSummary.showWeekly && (
+                    <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-1.5">
+                      <CalendarDays className="h-4 w-4 text-blue-600" />
+                      <div>
+                        <span className="text-[10px] uppercase font-semibold text-slate-500 block">
+                          This Week Hours
+                        </span>
+                        <span className="text-sm font-bold text-blue-950 font-mono">
+                          {formatMinutes(periodSummary.weekMinutes)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  {periodSummary.showMonthly && (
+                    <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-1.5">
+                      <CalendarDays className="h-4 w-4 text-blue-600" />
+                      <div>
+                        <span className="text-[10px] uppercase font-semibold text-slate-500 block">
+                          This Month Hours
+                        </span>
+                        <span className="text-sm font-bold text-blue-950 font-mono">
+                          {formatMinutes(periodSummary.monthMinutes)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 rounded-xl border border-blue-100 bg-blue-50/70 px-4 py-1.5">
+                    <Clock className="h-4 w-4 text-blue-600" />
+                    <div>
+                      <span className="text-[10px] uppercase font-semibold text-blue-600 block">
+                        Period Total Hours
+                      </span>
+                      <span className="text-sm font-bold text-blue-950 font-mono">
+                        {formatMinutes(periodTotalMinutes)}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
