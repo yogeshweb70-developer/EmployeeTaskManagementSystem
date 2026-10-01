@@ -27,7 +27,7 @@ const MainApp: React.FC = () => {
       <div className="flex min-h-screen w-full items-center justify-center bg-slate-50">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-          <p className="text-sm font-medium text-slate-600">Loading ZeroAdo TaskLog...</p>
+          <p className="text-sm font-medium text-slate-600">Loading...</p>
         </div>
       </div>
     )

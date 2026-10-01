@@ -14,14 +14,12 @@ import {
 } from '@/components/ui/dialog'
 import { AnimatedGrid } from '@/components/react-bits/AnimatedGrid'
 import {
-  Briefcase,
   ShieldCheck,
   AlertCircle,
   Lock,
   Database,
   ExternalLink,
   KeyRound,
-  CheckCircle2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -81,11 +79,8 @@ export const LoginPage: React.FC = () => {
       <div className="w-full max-w-md space-y-6">
         {/* Brand / Logo Header */}
         <div className="text-center space-y-2">
-          <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 shadow-lg shadow-blue-500/25">
-            <Briefcase className="h-6 w-6 text-white" />
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-            ZeroAdo TaskLog
+          <h1 className="flex justify-center">
+            <img src="https://zeroado.com/wp-content/uploads/2024/08/ZeroAdo-Logo-Blue-2026.png" alt="Zeroado" className="h-10 w-auto sm:h-12" />
           </h1>
           <p className="text-xs text-slate-500">
             Zeroado Employee Task & Time Log Portal
@@ -146,17 +141,13 @@ export const LoginPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Supabase connection indicator */}
+            {/* Supabase connection setup, shown only when not configured */}
+            {!isLiveSupabase && (
             <div className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-2 text-xs">
               <div className="flex items-center gap-2">
                 <Database className="h-3.5 w-3.5 text-blue-600" />
                 <span className="text-slate-600">Database Status:</span>
               </div>
-              {isLiveSupabase ? (
-                <span className="flex items-center gap-1 font-medium text-emerald-600">
-                  <CheckCircle2 className="h-3 w-3" /> Connected
-                </span>
-              ) : (
                 <button
                   type="button"
                   onClick={() => setIsConnectModalOpen(true)}
@@ -164,8 +155,8 @@ export const LoginPage: React.FC = () => {
                 >
                   <KeyRound className="h-3 w-3" /> Connect Supabase
                 </button>
-              )}
             </div>
+            )}
           </CardContent>
 
           <CardFooter className="flex flex-col gap-3 pt-0">

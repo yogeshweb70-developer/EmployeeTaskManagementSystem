@@ -24,7 +24,6 @@ import {
   User as UserIcon,
   Shield,
   Users,
-  Briefcase,
   CheckCircle2,
   Menu,
   Database,
@@ -73,12 +72,9 @@ export const Navbar: React.FC<NavbarProps> = ({
           </Button>
 
           <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 shadow-sm shadow-blue-500/30">
-              <Briefcase className="h-5 w-5 text-white" />
-            </div>
+            <img src="https://zeroado.com/wp-content/uploads/2024/08/ZeroAdo-Logo-Blue-2026.png" alt="Zeroado" className="h-7 w-auto" />
             <div className="hidden flex-col sm:flex">
               <div className="flex items-center gap-2">
-                <span className="font-bold tracking-tight text-slate-900 text-base">ZeroAdo TaskLog</span>
                 <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700">Enterprise</span>
               </div>
               <span className="text-[11px] text-slate-500">Employee Task Management</span>
