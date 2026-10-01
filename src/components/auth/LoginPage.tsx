@@ -28,7 +28,12 @@ import { toast } from 'sonner'
 export const LoginPage: React.FC = () => {
   const { signInWithGoogle, approvedDomain, isLiveSupabase } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  // Show OAuth errors Supabase returns in the redirect URL (?error_description=... or #error_description=...)
+  const [errorMessage, setErrorMessage] = useState<string | null>(() => {
+    const params = new URLSearchParams(window.location.search || window.location.hash.slice(1))
+    const oauthError = params.get('error_description') || params.get('error')
+    return oauthError ? decodeURIComponent(oauthError.replace(/\+/g, ' ')) : null
+  })
 
   // Supabase credentials modal (for connecting if not already in .env)
   const [isConnectModalOpen, setIsConnectModalOpen] = useState(false)
