@@ -7,6 +7,7 @@ import { SpotlightCard } from '@/components/react-bits/SpotlightCard'
 import { BlurText } from '@/components/react-bits/BlurText'
 import { TaskEntryForm } from '@/components/tasks/TaskEntryForm'
 import { TaskLogList } from '@/components/tasks/TaskLogList'
+import { EditTaskModal } from '@/components/tasks/EditTaskModal'
 import { TeamAssignmentModal } from '@/components/team/TeamAssignmentModal'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -51,6 +52,7 @@ export const TeamLeaderDashboard: React.FC<TeamLeaderDashboardProps> = ({
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false)
   const [filterEmployeeId, setFilterEmployeeId] = useState<string>('all')
   const [filterSearch, setFilterSearch] = useState('')
+  const [viewingTask, setViewingTask] = useState<TaskLog | null>(null)
   const [filterDate, setFilterDate] = useState('')
 
   const loadData = useCallback(async () => {
@@ -413,7 +415,11 @@ export const TeamLeaderDashboard: React.FC<TeamLeaderDashboardProps> = ({
                     </thead>
                     <tbody className="divide-y divide-slate-100 bg-white">
                       {filteredTeamTasks.map((t) => (
-                        <tr key={t.id} className="hover:bg-slate-50/70 transition-colors">
+                        <tr
+                          key={t.id}
+                          onClick={() => setViewingTask(t)}
+                          className="cursor-pointer hover:bg-slate-50/70 transition-colors"
+                        >
                           <td className="px-4 py-3 whitespace-nowrap">
                             <div className="flex items-center gap-2">
                               <Avatar className="h-7 w-7">
@@ -454,6 +460,18 @@ export const TeamLeaderDashboard: React.FC<TeamLeaderDashboardProps> = ({
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Team member task, view only (leaders can't edit others' logs) */}
+      <EditTaskModal
+        task={viewingTask}
+        mode="view"
+        canEdit={Boolean(viewingTask && viewingTask.user_id === user.id)}
+        open={Boolean(viewingTask)}
+        onOpenChange={(open) => {
+          if (!open) setViewingTask(null)
+        }}
+        onTaskUpdated={loadData}
+      />
 
       {/* Team Assignment Modal */}
       <TeamAssignmentModal

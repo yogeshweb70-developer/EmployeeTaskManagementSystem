@@ -224,7 +224,7 @@ export const TaskEntryForm: React.FC<TaskEntryFormProps> = ({ onTaskAdded }) => 
                 value={formatDateDDMMYYYY(workDate)}
                 readOnly
                 aria-invalid={!!fieldErrors.workDate}
-                className="bg-slate-50 cursor-not-allowed"
+                className="cursor-not-allowed"
               />
             </Field>
           </div>

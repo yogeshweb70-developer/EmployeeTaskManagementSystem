@@ -47,6 +47,7 @@ export const TaskLogList: React.FC<TaskLogListProps> = ({
 
   // State for modals
   const [editingTask, setEditingTask] = useState<TaskLog | null>(null)
+  const [modalMode, setModalMode] = useState<'view' | 'edit'>('view')
   const [deletingTask, setDeletingTask] = useState<TaskLog | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
@@ -285,7 +286,19 @@ export const TaskLogList: React.FC<TaskLogListProps> = ({
                   return (
                     <div
                       key={task.id}
-                      className="flex flex-col gap-2 p-4 transition-colors hover:bg-slate-50/60 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-3.5"
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => {
+                        setModalMode('view')
+                        setEditingTask(task)
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          setModalMode('view')
+                          setEditingTask(task)
+                        }
+                      }}
+                      className="flex cursor-pointer flex-col gap-2 p-4 transition-colors hover:bg-slate-50/60 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-3.5"
                     >
                       <div className="flex-1 space-y-1">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -319,7 +332,11 @@ export const TaskLogList: React.FC<TaskLogListProps> = ({
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8 text-slate-400 hover:text-blue-600"
-                              onClick={() => setEditingTask(task)}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setModalMode('edit')
+                                setEditingTask(task)
+                              }}
                               title="Edit task log"
                             >
                               <Pencil className="h-3.5 w-3.5" />
@@ -328,7 +345,10 @@ export const TaskLogList: React.FC<TaskLogListProps> = ({
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8 text-slate-400 hover:text-rose-600"
-                              onClick={() => setDeletingTask(task)}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setDeletingTask(task)
+                              }}
                               title="Delete task log"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
@@ -348,6 +368,8 @@ export const TaskLogList: React.FC<TaskLogListProps> = ({
       {/* Edit Task Modal */}
       <EditTaskModal
         task={editingTask}
+        mode={modalMode}
+        canEdit={Boolean(editingTask && (user?.id === editingTask.user_id || user?.role === 'admin'))}
         open={Boolean(editingTask)}
         onOpenChange={(open) => {
           if (!open) setEditingTask(null)

@@ -62,6 +62,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [assignModalEmployee, setAssignModalEmployee] = useState<Profile | null>(null)
   const [teamLeaderToManage, setTeamLeaderToManage] = useState<Profile | null>(null)
   const [editingTask, setEditingTask] = useState<TaskLog | null>(null)
+  const [modalMode, setModalMode] = useState<'view' | 'edit'>('view')
   const [deletingTask, setDeletingTask] = useState<TaskLog | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
@@ -458,7 +459,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         const assignedLeader = getLeaderForEmployee(t.user_id)
 
                         return (
-                          <tr key={t.id} className="hover:bg-slate-50/70 transition-colors">
+                          <tr
+                            key={t.id}
+                            onClick={() => {
+                              setModalMode('view')
+                              setEditingTask(t)
+                            }}
+                            className="cursor-pointer hover:bg-slate-50/70 transition-colors"
+                          >
                             <td className="px-4 py-3 whitespace-nowrap">
                               <div className="flex items-center gap-2">
                                 <Avatar className="h-7 w-7">
@@ -511,7 +519,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   variant="ghost"
                                   size="icon"
                                   className="h-7 w-7 text-slate-400 hover:text-blue-600"
-                                  onClick={() => setEditingTask(t)}
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setModalMode('edit')
+                                    setEditingTask(t)
+                                  }}
                                   title="Edit task log"
                                 >
                                   <Pencil className="h-3.5 w-3.5" />
@@ -520,7 +532,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   variant="ghost"
                                   size="icon"
                                   className="h-7 w-7 text-slate-400 hover:text-rose-600"
-                                  onClick={() => setDeletingTask(t)}
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setDeletingTask(t)
+                                  }}
                                   title="Delete task log"
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
@@ -808,6 +823,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {/* Edit Task Modal */}
       <EditTaskModal
         task={editingTask}
+        mode={modalMode}
         open={Boolean(editingTask)}
         onOpenChange={(open) => {
           if (!open) setEditingTask(null)

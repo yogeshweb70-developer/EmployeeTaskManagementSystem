@@ -14,8 +14,9 @@ import {
 import { Input } from '@/components/ui/input'
 import { Field } from '@/components/ui/field'
 import { RichTextEditor } from '@/components/common/RichTextEditor'
+import { RichText } from '@/components/common/RichText'
 import { Button } from '@/components/ui/button'
-import { Clock, Calendar, AlertCircle } from 'lucide-react'
+import { Clock, Calendar, AlertCircle, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface EditTaskModalProps {
@@ -23,6 +24,9 @@ interface EditTaskModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onTaskUpdated: () => void
+  // 'view' opens read-only; the Edit button switches to editing when canEdit is true
+  mode?: 'view' | 'edit'
+  canEdit?: boolean
 }
 
 export const EditTaskModal: React.FC<EditTaskModalProps> = ({
@@ -30,6 +34,8 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
   open,
   onOpenChange,
   onTaskUpdated,
+  mode = 'edit',
+  canEdit = true,
 }) => {
   const { user } = useAuth()
   const today = getTodayDateString()
@@ -42,6 +48,7 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<{ taskName?: string; time?: string }>({})
+  const [isEditing, setIsEditing] = useState(mode === 'edit' && canEdit)
 
   useEffect(() => {
     if (task) {
@@ -53,12 +60,14 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
       setError(null)
       setFieldErrors({})
     }
-  }, [task])
+    setIsEditing(mode === 'edit' && canEdit)
+  }, [task, mode, canEdit])
 
   if (!task || !user) return null
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!isEditing) return
     setError(null)
 
     // Field validations, shown under each field
@@ -104,9 +113,13 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Edit Task Log</DialogTitle>
+          <DialogTitle>{isEditing ? 'Edit Task Log' : 'Task Log Details'}</DialogTitle>
           <DialogDescription>
-            Update details for this task. Future dates cannot be selected.
+            {isEditing
+              ? 'Update details for this task. The work date cannot be changed.'
+              : canEdit
+                ? 'Viewing this task. Click Edit to make changes.'
+                : 'Viewing this task.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -127,17 +140,29 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
                 if (fieldErrors.taskName) setFieldErrors((f) => ({ ...f, taskName: undefined }))
               }}
               placeholder="Task name"
+              readOnly={!isEditing}
+              tabIndex={isEditing ? undefined : -1}
               aria-invalid={!!fieldErrors.taskName}
               aria-describedby={fieldErrors.taskName ? 'edit-task-name-error' : undefined}
             />
           </Field>
 
           <Field label="Task Description" optional>
-            <RichTextEditor
-              placeholder="Briefly describe what was accomplished. Select a word and click the link icon to add a link."
-              value={taskDescription}
-              onChange={setTaskDescription}
-            />
+            {isEditing ? (
+              <RichTextEditor
+                placeholder="Briefly describe what was accomplished. Select a word and click the link icon to add a link."
+                value={taskDescription}
+                onChange={setTaskDescription}
+              />
+            ) : (
+              <div className="min-h-[64px] cursor-not-allowed rounded-xl border border-input bg-white px-3 py-2 text-sm text-slate-800">
+                {taskDescription ? (
+                  <RichText value={taskDescription} />
+                ) : (
+                  <span className="text-slate-400">No description</span>
+                )}
+              </div>
+            )}
           </Field>
 
           <div className="grid grid-cols-2 gap-4">
@@ -156,6 +181,8 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
                     min="0"
                     max="24"
                     value={hours}
+                    readOnly={!isEditing}
+              tabIndex={isEditing ? undefined : -1}
                     onChange={(e) => {
                       setHours(e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value) || 0))
                       if (fieldErrors.time) setFieldErrors((f) => ({ ...f, time: undefined }))
@@ -173,6 +200,8 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
                     max="59"
                     step="1"
                     value={minutes}
+                    readOnly={!isEditing}
+              tabIndex={isEditing ? undefined : -1}
                     onChange={(e) => {
                       setMinutes(e.target.value === '' ? '' : Math.min(59, Math.max(0, parseInt(e.target.value) || 0)))
                       if (fieldErrors.time) setFieldErrors((f) => ({ ...f, time: undefined }))
@@ -187,22 +216,44 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
             </Field>
 
             <Field label="Work Date" htmlFor="edit-work-date" icon={<Calendar className="h-3.5 w-3.5 text-blue-600" />}>
-              <Input id="edit-work-date" type="text" value={formatDateDDMMYYYY(workDate)} readOnly disabled />
+              <Input id="edit-work-date" type="text" value={formatDateDDMMYYYY(workDate)} readOnly tabIndex={-1} />
             </Field>
           </div>
 
           <DialogFooter className="pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={isSubmitting}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isSubmitting} className="bg-blue-600 hover:bg-blue-700 text-white">
-              {isSubmitting ? 'Saving Changes...' : 'Save Changes'}
-            </Button>
+            {isEditing ? (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => onOpenChange(false)}
+                  disabled={isSubmitting}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isSubmitting} className="bg-blue-600 hover:bg-blue-700 text-white">
+                  {isSubmitting ? 'Saving Changes...' : 'Save Changes'}
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                  Close
+                </Button>
+                {canEdit && (
+                  <Button
+                    type="button"
+                    onClick={(e) => {
+                      // Avoid the click submitting the form once the footer swaps to Save
+                      e.preventDefault()
+                      setIsEditing(true)
+                    }}
+                  >
+                    <Pencil className="mr-1.5 h-3.5 w-3.5" /> Edit
+                  </Button>
+                )}
+              </>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>
