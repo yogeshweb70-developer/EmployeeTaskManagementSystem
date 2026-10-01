@@ -302,7 +302,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       {/* Tabs: All Task Logs | User Management | Team Assignments */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="bg-slate-100 p-1 w-full sm:w-auto grid grid-cols-3">
+        <TabsList className="p-1 w-full sm:w-auto grid grid-cols-3">
           <TabsTrigger value="all-tasks" className="text-xs sm:text-sm">
             All Task Logs
           </TabsTrigger>

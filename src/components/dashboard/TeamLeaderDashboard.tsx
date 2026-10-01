@@ -200,7 +200,7 @@ export const TeamLeaderDashboard: React.FC<TeamLeaderDashboardProps> = ({
 
       {/* Main Tabs: My Tasks | My Team | Team Task Logs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="bg-slate-100 p-1 w-full sm:w-auto grid grid-cols-3">
+        <TabsList className="p-1 w-full sm:w-auto grid grid-cols-3">
           <TabsTrigger value="overview" className="text-xs sm:text-sm">
             My Tasks
           </TabsTrigger>
