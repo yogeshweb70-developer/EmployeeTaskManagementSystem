@@ -29,6 +29,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { format, parseISO } from 'date-fns'
+import { RichText, LinkifiedText, Highlight, richTextToPlain } from '@/components/common/RichText'
 
 interface TeamLeaderDashboardProps {
   initialTab?: string
@@ -90,7 +91,7 @@ export const TeamLeaderDashboard: React.FC<TeamLeaderDashboardProps> = ({
       if (filterSearch.trim()) {
         const q = filterSearch.toLowerCase().trim()
         const matchesName = t.task_name.toLowerCase().includes(q)
-        const matchesDesc = t.task_description?.toLowerCase().includes(q)
+        const matchesDesc = richTextToPlain(t.task_description).toLowerCase().includes(q)
         const matchesUser = t.profiles?.name?.toLowerCase().includes(q)
         if (!matchesName && !matchesDesc && !matchesUser) return false
       }
@@ -423,7 +424,7 @@ export const TeamLeaderDashboard: React.FC<TeamLeaderDashboardProps> = ({
                               </Avatar>
                               <div>
                                 <span className="font-semibold text-slate-800 block">
-                                  {t.profiles?.name || 'Unknown'}
+                                  <Highlight text={t.profiles?.name || 'Unknown'} query={filterSearch} />
                                 </span>
                                 <span className="text-[10px] text-slate-400">
                                   {t.profiles?.email}
@@ -432,11 +433,9 @@ export const TeamLeaderDashboard: React.FC<TeamLeaderDashboardProps> = ({
                             </div>
                           </td>
                           <td className="px-4 py-3">
-                            <span className="font-medium text-slate-900 block">{t.task_name}</span>
+                            <LinkifiedText value={t.task_name} highlight={filterSearch} className="font-medium text-slate-900 block" />
                             {t.task_description && (
-                              <span className="text-[11px] text-slate-500 line-clamp-1">
-                                {t.task_description}
-                              </span>
+                              <RichText value={t.task_description} highlight={filterSearch} className="text-[11px] text-slate-500 line-clamp-2" />
                             )}
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap text-slate-600 font-mono">

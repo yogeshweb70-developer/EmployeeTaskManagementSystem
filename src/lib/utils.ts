@@ -33,3 +33,10 @@ export function getTodayDateString(): string {
   const day = String(now.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
 }
+
+export function formatDateDDMMYYYY(isoDate: string): string {
+  // YYYY-MM-DD -> dd/mm/yyyy
+  const [year, month, day] = isoDate.split('-')
+  if (!year || !month || !day) return isoDate
+  return `${day}/${month}/${year}`
+}

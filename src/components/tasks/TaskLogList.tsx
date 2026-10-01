@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { format, parseISO } from 'date-fns'
+import { RichText, LinkifiedText, Highlight, richTextToPlain } from '@/components/common/RichText'
 
 interface TaskLogListProps {
   tasks: TaskLog[]
@@ -56,7 +57,7 @@ export const TaskLogList: React.FC<TaskLogListProps> = ({
       if (searchQuery.trim() !== '') {
         const q = searchQuery.toLowerCase().trim()
         const matchesName = t.task_name.toLowerCase().includes(q)
-        const matchesDesc = t.task_description?.toLowerCase().includes(q)
+        const matchesDesc = richTextToPlain(t.task_description).toLowerCase().includes(q)
         const matchesUser = t.profiles?.name?.toLowerCase().includes(q)
         if (!matchesName && !matchesDesc && !matchesUser) {
           return false
@@ -289,18 +290,16 @@ export const TaskLogList: React.FC<TaskLogListProps> = ({
                       <div className="flex-1 space-y-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-semibold text-slate-900 text-sm">
-                            {task.task_name}
+                            <LinkifiedText value={task.task_name} highlight={searchQuery} />
                           </span>
                           {showUserInfo && task.profiles && (
                             <Badge variant="outline" className="text-[10px] text-slate-600">
-                              {task.profiles.name}
+                              <Highlight text={task.profiles.name} query={searchQuery} />
                             </Badge>
                           )}
                         </div>
                         {task.task_description && (
-                          <p className="text-xs text-slate-500 line-clamp-2">
-                            {task.task_description}
-                          </p>
+                          <RichText value={task.task_description} highlight={searchQuery} className="text-xs text-slate-500 line-clamp-3" />
                         )}
                       </div>
 

@@ -34,6 +34,7 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { RichText, LinkifiedText, Highlight, richTextToPlain } from '@/components/common/RichText'
 
 interface AdminDashboardProps {
   initialTab?: string
@@ -130,7 +131,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       if (filterSearch.trim()) {
         const q = filterSearch.toLowerCase().trim()
         const matchesName = task.task_name.toLowerCase().includes(q)
-        const matchesDesc = task.task_description?.toLowerCase().includes(q)
+        const matchesDesc = richTextToPlain(task.task_description).toLowerCase().includes(q)
         const matchesUser = task.profiles?.name?.toLowerCase().includes(q)
         if (!matchesName && !matchesDesc && !matchesUser) return false
       }
@@ -468,7 +469,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 </Avatar>
                                 <div>
                                   <span className="font-semibold text-slate-800 block">
-                                    {t.profiles?.name || 'Staff Member'}
+                                    <Highlight text={t.profiles?.name || 'Staff Member'} query={filterSearch} />
                                   </span>
                                   <span className="text-[10px] text-slate-400">
                                     {t.profiles?.email}
@@ -490,11 +491,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             </td>
 
                             <td className="px-4 py-3">
-                              <span className="font-medium text-slate-900 block">{t.task_name}</span>
+                              <LinkifiedText value={t.task_name} highlight={filterSearch} className="font-medium text-slate-900 block" />
                               {t.task_description && (
-                                <span className="text-[11px] text-slate-500 line-clamp-1">
-                                  {t.task_description}
-                                </span>
+                                <RichText value={t.task_description} highlight={filterSearch} className="text-[11px] text-slate-500 line-clamp-2" />
                               )}
                             </td>
 
@@ -609,12 +608,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   {p.name.substring(0, 2).toUpperCase()}
                                 </AvatarFallback>
                               </Avatar>
-                              <span className="font-semibold text-slate-800">{p.name}</span>
+                              <Highlight text={p.name} query={userSearch} className="font-semibold text-slate-800" />
                             </div>
                           </td>
 
                           <td className="px-4 py-3 whitespace-nowrap text-slate-600">
-                            {p.email}
+                            <Highlight text={p.email} query={userSearch} />
                           </td>
 
                           <td className="px-4 py-3 whitespace-nowrap">

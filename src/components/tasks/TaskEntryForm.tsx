@@ -1,10 +1,11 @@
 import React, { useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
 import { dataService } from '@/services/dataService'
-import { getTodayDateString, parseHoursAndMinutes } from '@/lib/utils'
+import { formatDateDDMMYYYY, getTodayDateString, parseHoursAndMinutes } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
+import { Field } from '@/components/ui/field'
+import { RichTextEditor } from '@/components/common/RichTextEditor'
 import { Button } from '@/components/ui/button'
 import { PlusCircle, Clock, Calendar, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
@@ -20,11 +21,12 @@ export const TaskEntryForm: React.FC<TaskEntryFormProps> = ({ onTaskAdded }) => 
 
   const [taskName, setTaskName] = useState('')
   const [taskDescription, setTaskDescription] = useState('')
-  const [hours, setHours] = useState<number | string>(2)
-  const [minutes, setMinutes] = useState<number | string>(30)
+  const [hours, setHours] = useState<number | string>('')
+  const [minutes, setMinutes] = useState<number | string>('')
   const [workDate, setWorkDate] = useState<string>(today)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [validationError, setValidationError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<{ taskName?: string; time?: string; workDate?: string }>({})
 
   if (!user) return null
 
@@ -32,22 +34,15 @@ export const TaskEntryForm: React.FC<TaskEntryFormProps> = ({ onTaskAdded }) => 
     e.preventDefault()
     setValidationError(null)
 
-    // Form validations
-    if (!taskName.trim()) {
-      setValidationError('Task Name is required and cannot be empty.')
-      return
-    }
-
+    // Field validations, shown under each field
     const totalMinutes = parseHoursAndMinutes(Number(hours), Number(minutes))
-    if (totalMinutes <= 0) {
-      setValidationError('Time spent must be greater than 0 minutes.')
-      return
-    }
-
-    if (workDate !== today) {
-      setValidationError('Tasks can only be logged for today.')
-      return
-    }
+    const errors: typeof fieldErrors = {}
+    if (!taskName.trim()) errors.taskName = 'Task Name is required.'
+    if (totalMinutes <= 0) errors.time = 'Enter hours or minutes greater than 0.'
+    else if (Number(hours) > 24) errors.time = 'Hours cannot be more than 24.'
+    if (workDate !== today) errors.workDate = 'Tasks can only be logged for today.'
+    setFieldErrors(errors)
+    if (Object.keys(errors).length > 0) return
 
     setIsSubmitting(true)
     try {
@@ -81,9 +76,10 @@ export const TaskEntryForm: React.FC<TaskEntryFormProps> = ({ onTaskAdded }) => 
       // Reset form
       setTaskName('')
       setTaskDescription('')
-      setHours(1)
-      setMinutes(0)
+      setHours('')
+      setMinutes('')
       setWorkDate(today)
+      setFieldErrors({})
 
       if (onTaskAdded) {
         onTaskAdded()
@@ -112,13 +108,13 @@ export const TaskEntryForm: React.FC<TaskEntryFormProps> = ({ onTaskAdded }) => 
             </div>
           </div>
           <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
-            Default: Today ({today})
+            Default: Today ({formatDateDDMMYYYY(today)})
           </span>
         </div>
       </CardHeader>
 
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
           {validationError && (
             <div className="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs font-medium text-rose-700">
               <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
@@ -128,54 +124,59 @@ export const TaskEntryForm: React.FC<TaskEntryFormProps> = ({ onTaskAdded }) => 
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {/* Task Name */}
-            <div className="space-y-1.5 md:col-span-2">
-              <label className="text-xs font-semibold text-slate-700">
-                Task Name <span className="text-rose-500">*</span>
-              </label>
+            <Field label="Task Name" htmlFor="task-name" required error={fieldErrors.taskName} className="md:col-span-2">
               <Input
+                id="task-name"
                 placeholder="e.g., Website Development, Client Meeting, Bug Fixes"
                 value={taskName}
-                onChange={(e) => setTaskName(e.target.value)}
-                required
+                onChange={(e) => {
+                  setTaskName(e.target.value)
+                  if (fieldErrors.taskName) setFieldErrors((f) => ({ ...f, taskName: undefined }))
+                }}
+                aria-invalid={!!fieldErrors.taskName}
+                aria-describedby={fieldErrors.taskName ? 'task-name-error' : undefined}
                 className="bg-white"
               />
-            </div>
+            </Field>
 
             {/* Task Description */}
-            <div className="space-y-1.5 md:col-span-2">
-              <label className="text-xs font-semibold text-slate-700">
-                Task Description <span className="text-xs font-normal text-slate-400">(optional)</span>
-              </label>
-              <Textarea
-                placeholder="Briefly describe what was accomplished, technical details, or notes..."
+            <Field label="Task Description" optional className="md:col-span-2">
+              <RichTextEditor
+                placeholder="Briefly describe what was accomplished. Select a word and click the link icon to add a link."
                 value={taskDescription}
-                onChange={(e) => setTaskDescription(e.target.value)}
-                rows={2}
-                className="resize-none bg-white"
+                onChange={setTaskDescription}
               />
-            </div>
+            </Field>
 
             {/* Time Spent (Hours & Minutes) */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
-                  <Clock className="h-3.5 w-3.5 text-blue-600" />
-                  Time Spent <span className="text-rose-500">*</span>
-                </label>
+            <Field
+              label="Time Spent"
+              htmlFor="time-hours"
+              icon={<Clock className={`h-3.5 w-3.5 ${fieldErrors.time ? 'text-rose-600' : 'text-blue-600'}`} />}
+              required
+              error={fieldErrors.time}
+              aside={
                 <span className="text-[11px] font-mono font-medium text-blue-600">
                   Total: {parseHoursAndMinutes(Number(hours), Number(minutes))}m ({Math.floor(parseHoursAndMinutes(Number(hours), Number(minutes)) / 60)}h {parseHoursAndMinutes(Number(hours), Number(minutes)) % 60}m)
                 </span>
-              </div>
+              }
+            >
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <div className="relative">
                     <Input
+                      id="time-hours"
                       type="number"
                       min="0"
                       max="24"
                       placeholder="Hours"
                       value={hours}
-                      onChange={(e) => setHours(e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value) || 0))}
+                      onChange={(e) => {
+                        setHours(e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value) || 0))
+                        if (fieldErrors.time) setFieldErrors((f) => ({ ...f, time: undefined }))
+                      }}
+                      aria-invalid={!!fieldErrors.time}
+                      aria-describedby={fieldErrors.time ? 'time-hours-error' : undefined}
                       className="pr-12 bg-white"
                     />
                     <span className="absolute right-3 top-2.5 text-xs text-slate-400 select-none">
@@ -189,10 +190,15 @@ export const TaskEntryForm: React.FC<TaskEntryFormProps> = ({ onTaskAdded }) => 
                       type="number"
                       min="0"
                       max="59"
-                      step="5"
+                      step="1"
                       placeholder="Minutes"
                       value={minutes}
-                      onChange={(e) => setMinutes(e.target.value === '' ? '' : Math.min(59, Math.max(0, parseInt(e.target.value) || 0)))}
+                      onChange={(e) => {
+                        setMinutes(e.target.value === '' ? '' : Math.min(59, Math.max(0, parseInt(e.target.value) || 0)))
+                        if (fieldErrors.time) setFieldErrors((f) => ({ ...f, time: undefined }))
+                      }}
+                      aria-invalid={!!fieldErrors.time}
+                      aria-describedby={fieldErrors.time ? 'time-hours-error' : undefined}
                       className="pr-14 bg-white"
                     />
                     <span className="absolute right-3 top-2.5 text-xs text-slate-400 select-none">
@@ -201,27 +207,26 @@ export const TaskEntryForm: React.FC<TaskEntryFormProps> = ({ onTaskAdded }) => 
                   </div>
                 </div>
               </div>
-            </div>
+            </Field>
 
             {/* Work date is locked to today */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
-                  <Calendar className="h-3.5 w-3.5 text-blue-600" />
-                  Work Date <span className="text-rose-500">*</span>
-                </label>
-                <span className="text-[10px] text-slate-500">Today only</span>
-              </div>
+            <Field
+              label="Work Date"
+              htmlFor="work-date"
+              icon={<Calendar className="h-3.5 w-3.5 text-blue-600" />}
+              required
+              error={fieldErrors.workDate}
+              aside={<span className="text-[10px] text-slate-500">Today only</span>}
+            >
               <Input
-                type="date"
-                min={today}
-                max={today}
-                value={workDate}
+                id="work-date"
+                type="text"
+                value={formatDateDDMMYYYY(workDate)}
                 readOnly
-                required
+                aria-invalid={!!fieldErrors.workDate}
                 className="bg-slate-50 cursor-not-allowed"
               />
-            </div>
+            </Field>
           </div>
 
           <div className="flex items-center justify-end pt-2">
