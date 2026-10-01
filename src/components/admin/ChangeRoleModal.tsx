@@ -145,10 +145,11 @@ export const ChangeRoleModal: React.FC<ChangeRoleModalProps> = ({
                 key={role}
                 type="button"
                 onClick={() => setSelectedRole(role)}
-                className={`p-3 rounded-lg border text-center transition-all cursor-pointer ${
+                aria-pressed={selectedRole === role}
+                className={`p-3 rounded-lg border text-center transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                   selectedRole === role
-                    ? 'border-blue-600 bg-blue-50/70 text-blue-800 font-semibold ring-1 ring-blue-600'
-                    : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                    ? 'border-[#061237] bg-[#061237] text-white font-semibold'
+                    : 'border-slate-200 bg-white text-[#061237] hover:border-[#061237] hover:bg-[#061237] hover:text-white'
                 }`}
               >
                 <div className="text-xs capitalize font-medium">{role.replace('_', ' ')}</div>

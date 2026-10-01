@@ -169,9 +169,9 @@ export const TaskLogList: React.FC<TaskLogListProps> = ({
         </CardHeader>
 
         <CardContent className="space-y-3">
-          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-12">
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-12">
             {/* Search input */}
-            <div className="relative sm:col-span-6">
+            <div className="relative sm:col-span-2 lg:col-span-6">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
               <Input
                 placeholder="Search tasks by name or description..."
@@ -182,7 +182,7 @@ export const TaskLogList: React.FC<TaskLogListProps> = ({
             </div>
 
             {/* Start Date */}
-            <div className="sm:col-span-2.5">
+            <div className="lg:col-span-3">
               <div className="relative">
                 <Input
                   type="date"
@@ -195,7 +195,7 @@ export const TaskLogList: React.FC<TaskLogListProps> = ({
             </div>
 
             {/* End Date */}
-            <div className="sm:col-span-2.5">
+            <div className="lg:col-span-2">
               <div className="relative">
                 <Input
                   type="date"
@@ -209,7 +209,7 @@ export const TaskLogList: React.FC<TaskLogListProps> = ({
 
             {/* Reset Filter Button */}
             {(searchQuery || startDate || endDate) && (
-              <div className="sm:col-span-1 flex items-center">
+              <div className="lg:col-span-1 flex items-center">
                 <Hint label="Clear all filters">
                   <Button
                     variant="ghost"
@@ -269,10 +269,10 @@ export const TaskLogList: React.FC<TaskLogListProps> = ({
                   <span className="font-bold text-slate-900 text-sm sm:text-base">
                     {group.formattedDate}
                   </span>
-                  <span className="text-xs text-slate-400 font-mono">({group.date})</span>
+                  <span className="hidden text-xs text-slate-400 font-mono sm:inline">({group.date})</span>
                 </div>
                 <div className="flex items-center gap-1.5 font-medium">
-                  <span className="text-xs text-slate-500">Daily Total:</span>
+                  <span className="hidden text-xs text-slate-500 sm:inline">Daily Total:</span>
                   <Badge variant="time" className="text-xs">
                     {formatMinutes(group.totalMinutes)}
                   </Badge>

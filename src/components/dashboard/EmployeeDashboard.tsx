@@ -69,7 +69,7 @@ export const EmployeeDashboard: React.FC = () => {
               <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
                 <BlurText text={user.name} />
               </h1>
-              <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">
+              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
                 <Mail className="h-3.5 w-3.5 text-slate-400" />
                 <span>{user.email}</span>
                 <span>•</span>

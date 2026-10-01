@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { useAuth } from '@/context/AuthContext'
 import { dataService } from '@/services/dataService'
 import { Profile, TaskLog } from '@/types'
-import { formatMinutes } from '@/lib/utils'
+import { formatDateDDMMYYYY, formatMinutes } from '@/lib/utils'
 import { SpotlightCard } from '@/components/react-bits/SpotlightCard'
 import { BlurText } from '@/components/react-bits/BlurText'
 import { TaskEntryForm } from '@/components/tasks/TaskEntryForm'
@@ -140,7 +140,7 @@ export const TeamLeaderDashboard: React.FC<TeamLeaderDashboardProps> = ({
               <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
                 <BlurText text={user.name} />
               </h1>
-              <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">
+              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
                 <span>{user.email}</span>
                 <span>•</span>
                 <Badge variant="leader" className="text-[10px]">
@@ -333,9 +333,9 @@ export const TeamLeaderDashboard: React.FC<TeamLeaderDashboardProps> = ({
 
             <CardContent className="space-y-4">
               {/* Filters */}
-              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-12">
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-12">
                 {/* Employee Filter */}
-                <div className="sm:col-span-4">
+                <div className="lg:col-span-4">
                   <select
                     value={filterEmployeeId}
                     onChange={(e) => setFilterEmployeeId(e.target.value)}
@@ -351,7 +351,7 @@ export const TeamLeaderDashboard: React.FC<TeamLeaderDashboardProps> = ({
                 </div>
 
                 {/* Date Filter */}
-                <div className="sm:col-span-3">
+                <div className="lg:col-span-3">
                   <Input
                     type="date"
                     value={filterDate}
@@ -362,7 +362,7 @@ export const TeamLeaderDashboard: React.FC<TeamLeaderDashboardProps> = ({
                 </div>
 
                 {/* Search */}
-                <div className="relative sm:col-span-4">
+                <div className="relative lg:col-span-4">
                   <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                   <Input
                     placeholder="Search tasks..."
@@ -374,7 +374,7 @@ export const TeamLeaderDashboard: React.FC<TeamLeaderDashboardProps> = ({
 
                 {/* Clear */}
                 {(filterEmployeeId !== 'all' || filterDate || filterSearch) && (
-                  <div className="sm:col-span-1 flex items-center">
+                  <div className="lg:col-span-1 flex items-center">
                     <Button
                       variant="ghost"
                       size="icon"
@@ -405,7 +405,8 @@ export const TeamLeaderDashboard: React.FC<TeamLeaderDashboardProps> = ({
                   </p>
                 </div>
               ) : (
-                <div className="overflow-x-auto rounded-lg border border-slate-200">
+                <>
+                <div className="hidden overflow-x-auto rounded-lg border border-slate-200 lg:block">
                   <table className="w-full text-left text-xs">
                     <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
                       <tr>
@@ -457,6 +458,46 @@ export const TeamLeaderDashboard: React.FC<TeamLeaderDashboardProps> = ({
                     </tbody>
                   </table>
                 </div>
+                {/* Phones/tablets: stacked cards instead of the wide table */}
+                <div className="divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white lg:hidden">
+                  {filteredTeamTasks.map((t) => (
+                    <div
+                      key={t.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setViewingTask(t)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') setViewingTask(t)
+                      }}
+                      className="cursor-pointer space-y-2 p-3 transition-colors hover:bg-slate-50/70"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Avatar className="h-7 w-7 shrink-0">
+                          <AvatarImage src={t.profiles?.avatar_url} />
+                          <AvatarFallback className="text-[10px]">
+                            {t.profiles?.name?.substring(0, 2).toUpperCase() || 'EM'}
+                          </AvatarFallback>
+                        </Avatar>
+                        <Highlight
+                          text={t.profiles?.name || 'Unknown'}
+                          query={filterSearch}
+                          className="min-w-0 truncate text-xs font-semibold text-slate-800"
+                        />
+                      </div>
+                      <div>
+                        <LinkifiedText value={t.task_name} highlight={filterSearch} className="block text-sm font-medium text-slate-900" />
+                        {t.task_description && (
+                          <RichText value={t.task_description} highlight={filterSearch} className="text-[11px] text-slate-500 line-clamp-2" />
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="font-mono text-slate-500">{formatDateDDMMYYYY(t.work_date)}</span>
+                        <span className="font-mono font-semibold text-slate-800">{formatMinutes(t.duration_minutes)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                </>
               )}
             </CardContent>
           </Card>

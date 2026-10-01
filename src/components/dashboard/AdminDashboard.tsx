@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { useAuth } from '@/context/AuthContext'
 import { dataService } from '@/services/dataService'
 import { Profile, TaskLog, TeamAssignment, DashboardMetrics, UserRole } from '@/types'
-import { formatMinutes, getTodayDateString, getWeekStartDateString, getMonthStartDateString, daysActiveSince } from '@/lib/utils'
+import { formatDateDDMMYYYY, formatMinutes, getTodayDateString, getWeekStartDateString, getMonthStartDateString, daysActiveSince } from '@/lib/utils'
 import { SpotlightCard } from '@/components/react-bits/SpotlightCard'
 import { BlurText } from '@/components/react-bits/BlurText'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -242,7 +242,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
                 <BlurText text={user.name} />
               </h1>
-              <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">
+              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
                 <span>{user.email}</span>
                 <span>•</span>
                 <Badge variant="admin" className="text-[10px]">
@@ -400,9 +400,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
             <CardContent className="space-y-4">
               {/* Filter controls matching prompt: [Employee] [Team Leader] [Date Range] [Search] */}
-              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-12">
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-12">
                 {/* Employee Filter */}
-                <div className="sm:col-span-3">
+                <div className="lg:col-span-3">
                   <select
                     value={filterEmployeeId}
                     onChange={(e) => setFilterEmployeeId(e.target.value)}
@@ -418,7 +418,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
 
                 {/* Team Leader Filter */}
-                <div className="sm:col-span-3">
+                <div className="lg:col-span-3">
                   <select
                     value={filterLeaderId}
                     onChange={(e) => setFilterLeaderId(e.target.value)}
@@ -434,7 +434,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
 
                 {/* Date range From */}
-                <div className="sm:col-span-2">
+                <div className="lg:col-span-2">
                   <Input
                     type="date"
                     value={filterStartDate}
@@ -445,7 +445,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
 
                 {/* Date range To */}
-                <div className="sm:col-span-2">
+                <div className="lg:col-span-2">
                   <Input
                     type="date"
                     value={filterEndDate}
@@ -456,7 +456,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
 
                 {/* Search */}
-                <div className="relative sm:col-span-2">
+                <div className="relative lg:col-span-2">
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
                   <Input
                     placeholder="Search task..."
@@ -499,7 +499,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </p>
                 </div>
               ) : (
-                <div className="overflow-x-auto rounded-lg border border-slate-200">
+                <>
+                <div className="hidden overflow-x-auto rounded-lg border border-slate-200 lg:block">
                   <table className="w-full text-left text-xs">
                     <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
                       <tr>
@@ -607,6 +608,84 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </tbody>
                   </table>
                 </div>
+                {/* Phones/tablets: stacked cards instead of the wide table */}
+                <div className="divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white lg:hidden">
+                  {filteredTasks.map((t) => (
+                    <div
+                      key={t.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => {
+                        setModalMode('view')
+                        setEditingTask(t)
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          setModalMode('view')
+                          setEditingTask(t)
+                        }
+                      }}
+                      className="cursor-pointer space-y-2 p-3 transition-colors hover:bg-slate-50/70"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <Avatar className="h-7 w-7 shrink-0">
+                            <AvatarImage src={t.profiles?.avatar_url} />
+                            <AvatarFallback className="text-[10px]">
+                              {t.profiles?.name?.substring(0, 2).toUpperCase() || 'EM'}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0">
+                            <Highlight
+                              text={t.profiles?.name || 'Staff Member'}
+                              query={filterSearch}
+                              className="block truncate text-xs font-semibold text-slate-800"
+                            />
+                            <span className="block truncate text-[10px] text-slate-400">{t.profiles?.email}</span>
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-0.5">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-slate-400 hover:text-blue-600"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setModalMode('edit')
+                              setEditingTask(t)
+                            }}
+                            aria-label="Edit task log"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-slate-400 hover:text-rose-600"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setDeletingTask(t)
+                            }}
+                            aria-label="Delete task log"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                      <div>
+                        <LinkifiedText value={t.task_name} highlight={filterSearch} className="block text-sm font-medium text-slate-900" />
+                        {t.task_description && (
+                          <RichText value={t.task_description} highlight={filterSearch} className="text-[11px] text-slate-500 line-clamp-2" />
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="font-mono text-slate-500">{formatDateDDMMYYYY(t.work_date)}</span>
+                        <span className="font-mono font-semibold text-slate-800">{formatMinutes(t.duration_minutes)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                </>
               )}
             </CardContent>
           </Card>
@@ -656,7 +735,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
 
               {/* Users Table */}
-              <div className="overflow-x-auto rounded-lg border border-slate-200">
+              <div className="hidden overflow-x-auto rounded-lg border border-slate-200 lg:block">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
                     <tr>
@@ -766,6 +845,73 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     })}
                   </tbody>
                 </table>
+              </div>
+              {/* Phones/tablets: stacked cards instead of the wide table */}
+              <div className="divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white lg:hidden">
+                {filteredProfiles.map((p) => {
+                  const leader = p.role === 'employee' ? getLeaderForEmployee(p.id) : null
+                  const isSelf = p.id === user?.id
+                  return (
+                    <div key={p.id} className="space-y-2.5 p-3">
+                      <div className="flex items-center gap-2.5">
+                        <Avatar className="h-9 w-9 shrink-0 ring-1 ring-slate-200">
+                          <AvatarImage src={p.avatar_url} />
+                          <AvatarFallback className="text-xs">{p.name.substring(0, 2).toUpperCase()}</AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0 flex-1">
+                          <Highlight text={p.name} query={userSearch} className="block truncate text-sm font-semibold text-slate-800" />
+                          <Highlight text={p.email} query={userSearch} className="block truncate text-[11px] text-slate-500" />
+                        </div>
+                        {p.role === 'admin' ? (
+                          <Badge variant="admin">Admin</Badge>
+                        ) : p.role === 'team_leader' ? (
+                          <Badge variant="leader">Team Leader</Badge>
+                        ) : (
+                          <Badge variant="employee">Employee</Badge>
+                        )}
+                      </div>
+                      {p.role === 'employee' && (
+                        <p className="text-[11px] text-slate-500">
+                          Team Leader:{' '}
+                          {leader ? (
+                            <span className="font-medium text-slate-700">{leader.name}</span>
+                          ) : (
+                            <span className="font-medium text-amber-600">Unassigned</span>
+                          )}
+                        </p>
+                      )}
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <Button variant="outline" size="sm" onClick={() => setRoleModalUser(p)} className="h-8 text-[11px] px-2.5">
+                          Change Role
+                        </Button>
+                        {p.role === 'employee' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setAssignModalEmployee(p)}
+                            className="h-8 text-[11px] px-2.5 text-blue-600 border-blue-200 hover:bg-blue-50"
+                          >
+                            Assign Leader
+                          </Button>
+                        )}
+                        <Hint label={isSelf ? "You can't delete your own account" : `Delete ${p.name}`}>
+                          <span tabIndex={isSelf ? 0 : undefined} className={isSelf ? 'ml-auto inline-flex cursor-not-allowed' : 'ml-auto inline-flex'}>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setDeletingUser(p)}
+                              disabled={isSelf}
+                              className="h-8 w-8 p-0 text-slate-400 border-slate-200 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50"
+                              aria-label={isSelf ? "You can't delete your own account" : `Delete ${p.name}`}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </span>
+                        </Hint>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             </CardContent>
           </Card>

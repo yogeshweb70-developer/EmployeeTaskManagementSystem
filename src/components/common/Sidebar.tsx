@@ -81,7 +81,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Mobile Backdrop */}
       {isMobileOpen && (
         <div
-          className="fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-xs md:hidden"
+          className="fixed inset-x-0 top-16 bottom-0 z-30 bg-slate-900/50 backdrop-blur-xs md:hidden"
           onClick={onMobileClose}
         />
       )}
@@ -89,17 +89,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Sidebar Container */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-slate-200 bg-white transition-transform duration-200 ease-in-out md:static md:translate-x-0',
+          // Starts below the 64px header (top-16) so it never covers it; sticks beside content on desktop
+          'fixed top-16 bottom-0 left-0 z-30 flex w-64 shrink-0 flex-col border-r border-slate-200 bg-white transition-transform duration-200 ease-in-out md:sticky md:top-16 md:h-[calc(100vh-4rem)] md:translate-x-0',
           isMobileOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
-        {/* Mobile Header with close button */}
-        <div className="flex h-16 items-center justify-between border-b border-slate-200 px-6 md:hidden">
-          <div className="flex items-center gap-2 font-bold text-slate-800">
-            <img src="/img/logo/zeroado-logo.png" alt="Zeroado" className="h-6 w-auto" />
-          </div>
+        {/* Mobile close row (the header above already shows the logo) */}
+        <div className="flex h-12 items-center justify-between border-b border-slate-200 px-4 md:hidden">
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Menu</span>
           <button
             onClick={onMobileClose}
+            aria-label="Close menu"
             className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100"
           >
             <X className="h-5 w-5" />

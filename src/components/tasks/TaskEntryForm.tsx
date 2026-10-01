@@ -95,7 +95,7 @@ export const TaskEntryForm: React.FC<TaskEntryFormProps> = ({ onTaskAdded }) => 
   return (
     <Card className="border border-slate-200 shadow-xs">
       <CardHeader className="pb-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <div className="rounded-lg bg-blue-50 p-2 text-blue-600">
               <PlusCircle className="h-5 w-5" />
@@ -103,11 +103,11 @@ export const TaskEntryForm: React.FC<TaskEntryFormProps> = ({ onTaskAdded }) => 
             <div>
               <CardTitle className="text-base font-bold">Add Task Log</CardTitle>
               <CardDescription className="text-xs">
-                Log your work tasks and time spent for today or previous dates
+                Log your work tasks and time spent for today
               </CardDescription>
             </div>
           </div>
-          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
+          <span className="self-start rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium whitespace-nowrap text-slate-600 sm:self-auto">
             Default: Today ({formatDateDDMMYYYY(today)})
           </span>
         </div>
@@ -169,7 +169,7 @@ export const TaskEntryForm: React.FC<TaskEntryFormProps> = ({ onTaskAdded }) => 
                       type="number"
                       min="0"
                       max="24"
-                      placeholder="Hours"
+                      placeholder="0"
                       value={hours}
                       onChange={(e) => {
                         setHours(e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value) || 0))
@@ -191,7 +191,7 @@ export const TaskEntryForm: React.FC<TaskEntryFormProps> = ({ onTaskAdded }) => 
                       min="0"
                       max="59"
                       step="1"
-                      placeholder="Minutes"
+                      placeholder="0"
                       value={minutes}
                       onChange={(e) => {
                         setMinutes(e.target.value === '' ? '' : Math.min(59, Math.max(0, parseInt(e.target.value) || 0)))
