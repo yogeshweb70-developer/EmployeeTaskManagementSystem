@@ -14,7 +14,29 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ['"Instrument Sans"', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'sans-serif'],
+      },
       colors: {
+        // zeroado.com brand blue (#0156FF) replaces Tailwind's default blue everywhere
+        blue: {
+          50: '#eef4ff',
+          100: '#e6eeff',
+          200: '#b3ccff',
+          300: '#80aaff',
+          400: '#3d7dff',
+          500: '#1a66ff',
+          600: '#0156ff',
+          700: '#0145d1',
+          800: '#0337a6',
+          900: '#062c7f',
+          950: '#061237',
+        },
+        // zeroado.com navy (#061237) for headings and dark text
+        slate: {
+          900: '#061237',
+          950: '#030a20',
+        },
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',

@@ -207,10 +207,6 @@ export const dataService = {
         await supabase.from('team_assignments').delete().eq('team_leader_id', leaderId)
 
         if (employeeIds.length > 0) {
-          // Remove any previous assignments where these employees belonged to another leader
-          // (One Employee -> One Team Leader rule)
-          await supabase.from('team_assignments').delete().in('employee_id', employeeIds)
-
           const rowsToInsert = employeeIds.map((empId) => ({
             team_leader_id: leaderId,
             employee_id: empId,
@@ -227,8 +223,6 @@ export const dataService = {
     let assignments = getStoredAssignments()
     // Remove all current members for this leader
     assignments = assignments.filter((a) => a.team_leader_id !== leaderId)
-    // Remove employees that were in other teams (One employee -> One leader rule)
-    assignments = assignments.filter((a) => !employeeIds.includes(a.employee_id))
 
     // Add new assignments
     for (const empId of employeeIds) {
@@ -418,8 +412,8 @@ export const dataService = {
     }
 
     const todayStr = getTodayDateString()
-    if (taskData.work_date > todayStr) {
-      throw new Error('Future dates are not allowed. You can only log tasks for today or previous dates.')
+    if (taskData.work_date !== todayStr) {
+      throw new Error('Tasks can only be logged for today.')
     }
 
     // RLS: Only self or Admin can insert

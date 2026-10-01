@@ -198,14 +198,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       <SpotlightCard className="border border-slate-200 bg-white">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
-            <Avatar className="h-16 w-16 ring-4 ring-purple-500/10 shadow-sm">
+            <Avatar className="h-16 w-16 ring-4 ring-blue-500/10 shadow-sm">
               <AvatarImage src={user.avatar_url} alt={user.name} />
-              <AvatarFallback className="text-xl font-bold bg-purple-100 text-purple-700">
+              <AvatarFallback className="text-xl font-bold bg-blue-100 text-blue-600">
                 {user.name.substring(0, 2).toUpperCase()}
               </AvatarFallback>
             </Avatar>
             <div>
-              <p className="text-xs font-semibold text-purple-600 uppercase tracking-wider">
+              <p className="text-xs font-semibold text-blue-600 uppercase tracking-wider">
                 Company Administration Portal
               </p>
               <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
@@ -249,7 +249,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Team Leaders
             </span>
-            <div className="rounded-lg bg-purple-50 p-2 text-purple-600">
+            <div className="rounded-lg bg-blue-50 p-2 text-blue-600">
               <UserCheck className="h-4 w-4" />
             </div>
           </div>
@@ -689,7 +689,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     Team Assignments Matrix
                   </CardTitle>
                   <CardDescription className="text-xs">
-                    Overview of active team rosters. Rule: One Employee → One Team Leader
+                    Overview of active team rosters. An employee can belong to multiple Team Leaders
                   </CardDescription>
                 </div>
               </div>

@@ -103,7 +103,7 @@ export const TeamAssignmentModal: React.FC<TeamAssignmentModalProps> = ({
           </div>
           <DialogDescription className="text-xs">
             Assign or remove employees for <span className="font-semibold text-slate-800">{leader.name}</span>.
-            Note: An employee can have only one Team Leader at a time.
+            Note: An employee can be assigned to multiple Team Leaders.
           </DialogDescription>
         </DialogHeader>
 
@@ -178,8 +178,8 @@ export const TeamAssignmentModal: React.FC<TeamAssignmentModalProps> = ({
                   </div>
 
                   {isAssignedToOther && (
-                    <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-200 bg-amber-50">
-                      Currently with {emp.assigned_leader?.name}
+                    <Badge variant="outline" className="text-[10px] text-slate-600 border-slate-200 bg-slate-50">
+                      Also with {emp.assigned_leader?.name}
                     </Badge>
                   )}
                 </div>

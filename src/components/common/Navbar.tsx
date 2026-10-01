@@ -20,13 +20,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import {
+  Database,
   LogOut,
   User as UserIcon,
   Shield,
   Users,
   CheckCircle2,
   Menu,
-  Database,
   Sparkles,
 } from 'lucide-react'
 import { ShinyText } from '@/components/react-bits/ShinyText'
@@ -84,18 +84,17 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Center / Right Quick Switcher & User Profile */}
         <div className="flex items-center gap-3">
-          {/* Environment Indicator */}
-          <div className="hidden items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50/80 px-2.5 py-1 text-xs sm:flex">
-            <Database className="h-3.5 w-3.5 text-blue-600" />
-            <span className="text-slate-600">
+          {/* Database connection status, admins only */}
+          {user.role === 'admin' && (
+            <div className="hidden items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50/80 px-2.5 py-1 text-xs sm:flex">
+              <Database className="h-3.5 w-3.5 text-blue-600" />
               {isLiveSupabase ? (
                 <span className="font-medium text-emerald-600">Supabase Connected</span>
               ) : (
-                <span className="font-medium text-blue-600">Active Workspace</span>
+                <span className="font-medium text-rose-600">Supabase Not Connected</span>
               )}
-            </span>
-          </div>
-
+            </div>
+          )}
 
 
           {/* User Profile Menu */}

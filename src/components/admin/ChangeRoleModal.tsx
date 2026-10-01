@@ -108,7 +108,7 @@ export const ChangeRoleModal: React.FC<ChangeRoleModalProps> = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md max-h-[85vh] flex flex-col">
         <DialogHeader>
-          <div className="flex items-center gap-2 text-purple-600">
+          <div className="flex items-center gap-2 text-blue-600">
             <Shield className="h-5 w-5" />
             <DialogTitle>Change User Role</DialogTitle>
           </div>

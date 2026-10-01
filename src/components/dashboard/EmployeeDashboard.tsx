@@ -134,7 +134,7 @@ export const EmployeeDashboard: React.FC = () => {
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Total Logged Days
             </span>
-            <div className="rounded-lg bg-purple-50 p-2 text-purple-600">
+            <div className="rounded-lg bg-blue-50 p-2 text-blue-600">
               <CalendarDays className="h-4 w-4" />
             </div>
           </div>

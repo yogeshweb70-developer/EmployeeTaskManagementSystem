@@ -24,6 +24,8 @@ const AvatarImage = React.forwardRef<
   <AvatarPrimitive.Image
     ref={ref}
     className={cn('aspect-square h-full w-full object-cover', className)}
+    // Google profile photos (lh3.googleusercontent.com) can fail to load when a referrer is sent
+    referrerPolicy="no-referrer"
     {...props}
   />
 ))

@@ -44,8 +44,8 @@ export const TaskEntryForm: React.FC<TaskEntryFormProps> = ({ onTaskAdded }) => 
       return
     }
 
-    if (workDate > today) {
-      setValidationError('Future dates are not permitted. Please select today or a previous date.')
+    if (workDate !== today) {
+      setValidationError('Tasks can only be logged for today.')
       return
     }
 
@@ -203,22 +203,23 @@ export const TaskEntryForm: React.FC<TaskEntryFormProps> = ({ onTaskAdded }) => 
               </div>
             </div>
 
-            {/* Date Selector (Current or Past only, Future disabled) */}
+            {/* Work date is locked to today */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
                   <Calendar className="h-3.5 w-3.5 text-blue-600" />
                   Work Date <span className="text-rose-500">*</span>
                 </label>
-                <span className="text-[10px] text-slate-500">Future dates disabled</span>
+                <span className="text-[10px] text-slate-500">Today only</span>
               </div>
               <Input
                 type="date"
+                min={today}
                 max={today}
                 value={workDate}
-                onChange={(e) => setWorkDate(e.target.value)}
+                readOnly
                 required
-                className="bg-white"
+                className="bg-slate-50 cursor-not-allowed"
               />
             </div>
           </div>

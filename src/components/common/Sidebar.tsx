@@ -106,21 +106,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
         </div>
 
-        {/* Role Banner */}
-        <div className="p-4 pb-2">
-          <div className="rounded-lg border border-slate-100 bg-slate-50/70 p-3">
-            <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
-              Access Scope
-            </span>
-            <div className="mt-1 flex items-center justify-between">
-              <span className="text-xs font-semibold capitalize text-slate-800">
-                {user.role.replace('_', ' ')} Workspace
-              </span>
-              <span className="h-2 w-2 rounded-full bg-emerald-500" />
-            </div>
-          </div>
-        </div>
-
         {/* Navigation Links */}
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
           {navItems.map((item) => {

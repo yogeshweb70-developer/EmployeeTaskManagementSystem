@@ -33,9 +33,6 @@ export const ProfileView: React.FC = () => {
                 {user.role === 'admin' && <Badge variant="admin">Company Administrator</Badge>}
                 {user.role === 'team_leader' && <Badge variant="leader">Team Leader</Badge>}
                 {user.role === 'employee' && <Badge variant="employee">Employee</Badge>}
-                <span className="rounded bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-200">
-                  Google SSO Active
-                </span>
               </div>
             </div>
           </div>
@@ -69,22 +66,6 @@ export const ProfileView: React.FC = () => {
             <div className="rounded-lg border border-slate-100 bg-slate-50 p-3 space-y-1">
               <span className="text-slate-400 text-[11px] block">System Role</span>
               <span className="font-semibold text-slate-800 capitalize">{user.role.replace('_', ' ')}</span>
-            </div>
-
-            <div className="rounded-lg border border-slate-100 bg-slate-50 p-3 space-y-1">
-              <span className="text-slate-400 text-[11px] block">User ID / Subject ID</span>
-              <span className="font-mono text-slate-700 text-[11px] truncate block">{user.id}</span>
-            </div>
-
-            <div className="rounded-lg border border-slate-100 bg-slate-50 p-3 space-y-1">
-              <span className="text-slate-400 text-[11px] block">Security Scope</span>
-              <span className="font-semibold text-slate-800">
-                {user.role === 'admin'
-                  ? 'Full read/write on all users, teams, and task logs'
-                  : user.role === 'team_leader'
-                  ? 'Read/write on own tasks + assigned team tasks'
-                  : 'Read/write on own task logs only'}
-              </span>
             </div>
           </div>
 

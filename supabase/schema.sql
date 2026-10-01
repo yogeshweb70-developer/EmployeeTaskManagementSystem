@@ -29,13 +29,14 @@ CREATE INDEX IF NOT EXISTS idx_profiles_email ON public.profiles(email);
 CREATE INDEX IF NOT EXISTS idx_profiles_role ON public.profiles(role);
 
 -- 3. Create `team_assignments` table
--- Rule: One Employee -> One Team Leader (employee_id is UNIQUE)
+-- Rule: An employee can be assigned to any number of Team Leaders (each pair once)
 CREATE TABLE IF NOT EXISTS public.team_assignments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     team_leader_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-    employee_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE UNIQUE,
+    employee_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
-    CONSTRAINT chk_not_self_assigned CHECK (team_leader_id <> employee_id)
+    CONSTRAINT chk_not_self_assigned CHECK (team_leader_id <> employee_id),
+    CONSTRAINT uq_team_assignment_pair UNIQUE (team_leader_id, employee_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_team_assignments_leader ON public.team_assignments(team_leader_id);

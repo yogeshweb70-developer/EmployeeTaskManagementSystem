@@ -177,9 +177,9 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
               </label>
               <Input
                 type="date"
-                max={today}
                 value={workDate}
-                onChange={(e) => setWorkDate(e.target.value)}
+                readOnly
+                disabled
                 required
               />
             </div>
