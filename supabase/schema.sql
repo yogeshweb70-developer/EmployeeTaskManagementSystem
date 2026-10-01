@@ -170,7 +170,12 @@ BEGIN
     ON CONFLICT (id) DO UPDATE
     SET name = EXCLUDED.name,
         email = EXCLUDED.email,
-        avatar_url = EXCLUDED.avatar_url,
+        -- Keep a photo the user uploaded; otherwise refresh it from Google
+        avatar_url = CASE
+            WHEN public.profiles.avatar_url LIKE '%/storage/v1/object/public/avatars/%'
+                THEN public.profiles.avatar_url
+            ELSE EXCLUDED.avatar_url
+        END,
         updated_at = timezone('utc'::text, now());
 
     RETURN new;
@@ -346,3 +351,32 @@ CREATE POLICY "Users can delete their own task logs"
     USING (
         user_id = auth.uid() OR public.is_admin()
     );
+
+-- ==============================================================================
+-- Storage: profile photo uploads (bucket `avatars`, public read, 2 MB, images only)
+-- Files live at avatars/<user id>/<file>; users can only write inside their own folder
+-- ==============================================================================
+
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('avatars', 'avatars', true, 2097152, ARRAY['image/png', 'image/jpeg', 'image/webp'])
+ON CONFLICT (id) DO NOTHING;
+
+DROP POLICY IF EXISTS "Avatar images are publicly readable" ON storage.objects;
+CREATE POLICY "Avatar images are publicly readable"
+    ON storage.objects FOR SELECT
+    USING (bucket_id = 'avatars');
+
+DROP POLICY IF EXISTS "Users can upload their own avatar" ON storage.objects;
+CREATE POLICY "Users can upload their own avatar"
+    ON storage.objects FOR INSERT TO authenticated
+    WITH CHECK (bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text);
+
+DROP POLICY IF EXISTS "Users can update their own avatar" ON storage.objects;
+CREATE POLICY "Users can update their own avatar"
+    ON storage.objects FOR UPDATE TO authenticated
+    USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text);
+
+DROP POLICY IF EXISTS "Users can delete their own avatar" ON storage.objects;
+CREATE POLICY "Users can delete their own avatar"
+    ON storage.objects FOR DELETE TO authenticated
+    USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text);

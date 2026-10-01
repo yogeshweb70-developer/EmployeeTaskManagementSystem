@@ -10,7 +10,12 @@ interface AuthContextType {
   approvedDomain: string
   signInWithGoogle: () => Promise<void>
   signOut: () => Promise<void>
+  uploadAvatar: (file: File) => Promise<void>
+  resetToGoogleAvatar: () => Promise<void>
 }
+
+const AVATAR_BUCKET = 'avatars'
+const MAX_AVATAR_BYTES = 2 * 1024 * 1024
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
@@ -154,6 +159,57 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null)
   }
 
+  // Save a new avatar URL on the profile and in local state
+  const saveAvatarUrl = async (avatarUrl: string) => {
+    if (!user) return
+    if (isLiveSupabase) {
+      const { error } = await supabase.from('profiles').update({ avatar_url: avatarUrl }).eq('id', user.id)
+      if (error) throw error
+    }
+    const updated = { ...user, avatar_url: avatarUrl }
+    setUser(updated)
+    if (!isLiveSupabase) {
+      localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(updated))
+    }
+  }
+
+  const uploadAvatar = async (file: File) => {
+    if (!user) return
+    if (!file.type.startsWith('image/')) throw new Error('Please choose an image file (JPG, PNG or WebP).')
+    if (file.size > MAX_AVATAR_BYTES) throw new Error('Image must be 2 MB or smaller.')
+
+    if (!isLiveSupabase) {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result as string)
+        reader.onerror = () => reject(new Error('Could not read the image file.'))
+        reader.readAsDataURL(file)
+      })
+      await saveAvatarUrl(dataUrl)
+      return
+    }
+
+    const ext = file.name.split('.').pop()?.toLowerCase() || 'png'
+    const path = `${user.id}/${Date.now()}.${ext}`
+    const { error: uploadError } = await supabase.storage
+      .from(AVATAR_BUCKET)
+      .upload(path, file, { contentType: file.type, upsert: true })
+    if (uploadError) throw uploadError
+
+    const { data } = supabase.storage.from(AVATAR_BUCKET).getPublicUrl(path)
+    await saveAvatarUrl(data.publicUrl)
+  }
+
+  // Switch back to the photo Google provides (empty string shows initials if Google has none)
+  const resetToGoogleAvatar = async () => {
+    let googleUrl = ''
+    if (isLiveSupabase) {
+      const { data: { user: authUser } } = await supabase.auth.getUser()
+      googleUrl = authUser?.user_metadata?.avatar_url || authUser?.user_metadata?.picture || ''
+    }
+    await saveAvatarUrl(googleUrl)
+  }
+
   return (
     <AuthContext.Provider
       value={{
@@ -163,6 +219,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         approvedDomain: APPROVED_DOMAIN,
         signInWithGoogle,
         signOut,
+        uploadAvatar,
+        resetToGoogleAvatar,
       }}
     >
       {children}
