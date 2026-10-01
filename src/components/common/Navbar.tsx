@@ -72,7 +72,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </Button>
 
           <div className="flex items-center gap-2.5">
-            <img src="https://zeroado.com/wp-content/uploads/2024/08/ZeroAdo-Logo-Blue-2026.png" alt="Zeroado" className="h-7 w-auto" />
+            <img src="/zeroado-logo.png" alt="Zeroado" className="h-7 w-auto" />
             <div className="hidden flex-col sm:flex">
               <div className="flex items-center gap-2">
                 <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700">Enterprise</span>

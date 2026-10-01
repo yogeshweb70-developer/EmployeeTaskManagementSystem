@@ -80,7 +80,7 @@ export const LoginPage: React.FC = () => {
         {/* Brand / Logo Header */}
         <div className="text-center space-y-2">
           <h1 className="flex justify-center">
-            <img src="https://zeroado.com/wp-content/uploads/2024/08/ZeroAdo-Logo-Blue-2026.png" alt="Zeroado" className="h-10 w-auto sm:h-12" />
+            <img src="/zeroado-logo.png" alt="Zeroado" className="h-10 w-auto sm:h-12" />
           </h1>
           <p className="text-xs text-slate-500">
             Zeroado Employee Task & Time Log Portal
