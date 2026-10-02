@@ -10,15 +10,20 @@ import {
   InviteResult,
   InvitationPreview,
   ManagedUser,
+  Client,
 } from '@/types'
 import { INITIAL_PROFILES, INITIAL_ASSIGNMENTS, INITIAL_TASKS } from '@/lib/mockData'
 import { isSupabaseConfigured, supabase, validateCompanyEmail } from '@/lib/supabase'
-import { getTodayDateString } from '@/lib/utils'
+import { MAX_BACKDATE_DAYS, getTodayDateString, isWorkDateAllowed } from '@/lib/utils'
 
 const PROFILES_STORAGE_KEY = 'tasklog_profiles_v1'
 const ASSIGNMENTS_STORAGE_KEY = 'tasklog_assignments_v1'
 const TASKS_STORAGE_KEY = 'tasklog_tasks_v1'
 const INVITATIONS_STORAGE_KEY = 'tasklog_invitations_v1'
+const CLIENTS_STORAGE_KEY = 'tasklog_clients_v1'
+
+// Seeded into local-only mode so the dropdown is never empty without Supabase
+const INITIAL_CLIENT_NAMES = ['Prem AI', 'Masters India', 'Zaptick', 'P3 LogiQ', "Chaitanya's Academy"]
 
 const INVITE_VALID_DAYS = 7
 
@@ -123,6 +128,29 @@ function withExpiry(invitation: Invitation): Invitation {
     return { ...invitation, status: 'expired' }
   }
   return invitation
+}
+
+function getStoredClients(): Client[] {
+  try {
+    const raw = localStorage.getItem(CLIENTS_STORAGE_KEY)
+    if (!raw) {
+      const seeded: Client[] = INITIAL_CLIENT_NAMES.map((name, i) => ({
+        id: `client-seed-${i}`,
+        name,
+        is_active: true,
+        created_at: new Date().toISOString(),
+      }))
+      localStorage.setItem(CLIENTS_STORAGE_KEY, JSON.stringify(seeded))
+      return seeded
+    }
+    return JSON.parse(raw)
+  } catch {
+    return []
+  }
+}
+
+function saveClients(clients: Client[]): void {
+  localStorage.setItem(CLIENTS_STORAGE_KEY, JSON.stringify(clients))
 }
 
 function profileToManagedUser(profile: Profile): ManagedUser {
@@ -459,6 +487,155 @@ export const dataService = {
   },
 
   // --------------------------------------------------------------------------
+  // CLIENTS
+  // --------------------------------------------------------------------------
+  // Reading is open to every active user, because employees and team leaders
+  // need the list for the task form. Every write goes through an admin-only RPC.
+
+  // `activeOnly` is what the task dropdown uses, so archived clients stop being
+  // offered without disappearing from the logs that already reference them.
+  async getClients(activeOnly = false): Promise<Client[]> {
+    if (isSupabaseConfigured()) {
+      let query = supabase.from('clients').select('*').order('name')
+      if (activeOnly) query = query.eq('is_active', true)
+      const { data, error } = await query
+      if (error) throw error
+      return data as Client[]
+    }
+
+    const clients = getStoredClients()
+    const filtered = activeOnly ? clients.filter((c) => c.is_active) : clients
+    return [...filtered].sort((a, b) => a.name.localeCompare(b.name))
+  },
+
+  // Admin Clients screen: the list plus how many task logs reference each one,
+  // so the UI can explain why a client cannot be deleted.
+  async getClientsWithUsage(): Promise<Client[]> {
+    const clients = await this.getClients(false)
+
+    if (isSupabaseConfigured()) {
+      const { data, error } = await supabase.from('task_logs').select('client_id')
+      if (error) {
+        console.warn('Could not count client usage:', error)
+        return clients
+      }
+      const counts = new Map<string, number>()
+      for (const row of (data ?? []) as { client_id: string | null }[]) {
+        if (row.client_id) counts.set(row.client_id, (counts.get(row.client_id) ?? 0) + 1)
+      }
+      return clients.map((c) => ({ ...c, task_count: counts.get(c.id) ?? 0 }))
+    }
+
+    const tasks = getStoredTasks()
+    return clients.map((c) => ({
+      ...c,
+      task_count: tasks.filter((t) => t.client_id === c.id).length,
+    }))
+  },
+
+  async createClient(name: string, requesterRole: UserRole): Promise<Client> {
+    if (requesterRole !== 'admin') {
+      throw new Error('Unauthorized: Only administrators can add clients.')
+    }
+    const cleanName = name.trim()
+    if (!cleanName) throw new Error('Please enter a client name.')
+
+    if (isSupabaseConfigured()) {
+      const { data, error } = await supabase.rpc('admin_create_client', { p_name: cleanName })
+      if (error) throw error
+      return (Array.isArray(data) ? data[0] : data) as Client
+    }
+
+    const clients = getStoredClients()
+    const existing = clients.find((c) => c.name.trim().toLowerCase() === cleanName.toLowerCase())
+    if (existing) {
+      if (existing.is_active) throw new Error(`${existing.name} is already on the client list.`)
+      // Re-adding an archived client restores it
+      const restored = { ...existing, name: cleanName, is_active: true }
+      saveClients(clients.map((c) => (c.id === existing.id ? restored : c)))
+      return restored
+    }
+
+    const client: Client = {
+      id: `client-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      name: cleanName,
+      is_active: true,
+      created_at: new Date().toISOString(),
+    }
+    saveClients([...clients, client])
+    return client
+  },
+
+  // Renames and/or archives. Pass only what changes.
+  async updateClient(
+    clientId: string,
+    updates: { name?: string; is_active?: boolean },
+    requesterRole: UserRole
+  ): Promise<Client> {
+    if (requesterRole !== 'admin') {
+      throw new Error('Unauthorized: Only administrators can change clients.')
+    }
+    const cleanName = updates.name?.trim()
+    if (updates.name !== undefined && !cleanName) throw new Error('Please enter a client name.')
+
+    if (isSupabaseConfigured()) {
+      const { data, error } = await supabase.rpc('admin_update_client', {
+        p_client_id: clientId,
+        p_name: cleanName ?? null,
+        p_is_active: updates.is_active ?? null,
+      })
+      if (error) throw error
+      return (Array.isArray(data) ? data[0] : data) as Client
+    }
+
+    const clients = getStoredClients()
+    const index = clients.findIndex((c) => c.id === clientId)
+    if (index === -1) throw new Error('Client not found.')
+
+    if (cleanName) {
+      const clash = clients.find(
+        (c) => c.id !== clientId && c.name.trim().toLowerCase() === cleanName.toLowerCase()
+      )
+      if (clash) throw new Error(`Another client is already called ${cleanName}.`)
+    }
+
+    clients[index] = {
+      ...clients[index],
+      ...(cleanName ? { name: cleanName } : {}),
+      ...(updates.is_active !== undefined ? { is_active: updates.is_active } : {}),
+      updated_at: new Date().toISOString(),
+    }
+    saveClients(clients)
+    return clients[index]
+  },
+
+  // Permanent. Refused while any task log still references the client.
+  async deleteClient(clientId: string, requesterRole: UserRole): Promise<void> {
+    if (requesterRole !== 'admin') {
+      throw new Error('Unauthorized: Only administrators can delete clients.')
+    }
+
+    if (isSupabaseConfigured()) {
+      const { error } = await supabase.rpc('admin_delete_client', { p_client_id: clientId })
+      if (error) throw error
+      return
+    }
+
+    const clients = getStoredClients()
+    const target = clients.find((c) => c.id === clientId)
+    if (!target) throw new Error('Client not found.')
+
+    const inUse = getStoredTasks().filter((t) => t.client_id === clientId).length
+    if (inUse > 0) {
+      throw new Error(
+        `${target.name} is used by ${inUse} task log(s). Archive it instead so the history is kept.`
+      )
+    }
+
+    saveClients(clients.filter((c) => c.id !== clientId))
+  },
+
+  // --------------------------------------------------------------------------
   // TEAM ASSIGNMENTS
   // --------------------------------------------------------------------------
   async getTeamAssignments(): Promise<TeamAssignment[]> {
@@ -581,10 +758,13 @@ export const dataService = {
   ): Promise<TaskLog[]> {
     if (isSupabaseConfigured()) {
       try {
-        let query = supabase.from('task_logs').select('*, profiles(*)')
+        let query = supabase.from('task_logs').select('*, profiles(*), clients(id, name, is_active)')
 
         if (filters?.employeeId) {
           query = query.eq('user_id', filters.employeeId)
+        }
+        if (filters?.clientId) {
+          query = query.eq('client_id', filters.clientId)
         }
         if (filters?.startDate) {
           query = query.gte('work_date', filters.startDate)
@@ -641,6 +821,10 @@ export const dataService = {
       filtered = filtered.filter((t) => t.user_id === filters.employeeId)
     }
 
+    if (filters?.clientId) {
+      filtered = filtered.filter((t) => t.client_id === filters.clientId)
+    }
+
     if (filters?.teamLeaderId) {
       const leaderAssignedIds = new Set(
         assignments.filter((a) => a.team_leader_id === filters.teamLeaderId).map((a) => a.employee_id)
@@ -679,9 +863,11 @@ export const dataService = {
       return b.created_at.localeCompare(a.created_at)
     })
 
-    // Attach profile info
+    // Attach profile and client info
+    const clients = getStoredClients()
     return filtered.map((t) => {
       const prof = profiles.find((p) => p.id === t.user_id)
+      const client = t.client_id ? clients.find((c) => c.id === t.client_id) : undefined
       return {
         ...t,
         profiles: prof
@@ -693,6 +879,7 @@ export const dataService = {
               role: prof.role,
             }
           : undefined,
+        clients: client ? { id: client.id, name: client.name, is_active: client.is_active } : null,
       }
     })
   },
@@ -704,6 +891,7 @@ export const dataService = {
       duration_minutes: number
       work_date: string
       user_id: string
+      client_id?: string | null
     },
     requesterId: string,
     requesterRole: UserRole
@@ -717,9 +905,16 @@ export const dataService = {
       throw new Error('Time spent must be greater than 0 minutes.')
     }
 
-    const todayStr = getTodayDateString()
-    if (taskData.work_date !== todayStr) {
-      throw new Error('Tasks can only be logged for today.')
+    // Client is mandatory on new logs; the INSERT policy enforces the same rule
+    if (!taskData.client_id) {
+      throw new Error('Select the client this task is for.')
+    }
+
+    // Today or the previous MAX_BACKDATE_DAYS days; never the future
+    if (!isWorkDateAllowed(taskData.work_date)) {
+      throw new Error(
+        `Tasks can only be logged for today or the previous ${MAX_BACKDATE_DAYS} days. Future dates are not allowed.`
+      )
     }
 
     // RLS: Only self or Admin can insert
@@ -737,8 +932,9 @@ export const dataService = {
             task_description: taskData.task_description?.trim() || null,
             duration_minutes: taskData.duration_minutes,
             work_date: taskData.work_date,
+            client_id: taskData.client_id || null,
           })
-          .select('*, profiles(*)')
+          .select('*, profiles(*), clients(id, name, is_active)')
           .single()
         if (error) throw error
         return data as TaskLog
@@ -756,6 +952,7 @@ export const dataService = {
       task_description: taskData.task_description?.trim() || null,
       duration_minutes: taskData.duration_minutes,
       work_date: taskData.work_date,
+      client_id: taskData.client_id || null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }
@@ -764,6 +961,7 @@ export const dataService = {
     saveTasks(tasks)
 
     const prof = profiles.find((p) => p.id === newTask.user_id)
+    const client = newTask.client_id ? getStoredClients().find((c) => c.id === newTask.client_id) : undefined
     return {
       ...newTask,
       profiles: prof
@@ -775,6 +973,7 @@ export const dataService = {
             role: prof.role,
           }
         : undefined,
+      clients: client ? { id: client.id, name: client.name, is_active: client.is_active } : null,
     }
   },
 
@@ -785,6 +984,7 @@ export const dataService = {
       task_description?: string | null
       duration_minutes?: number
       work_date?: string
+      client_id?: string | null
     },
     requesterId: string,
     requesterRole: UserRole
@@ -812,9 +1012,10 @@ export const dataService = {
           ...(updates.task_description !== undefined ? { task_description: updates.task_description } : {}),
           ...(updates.duration_minutes !== undefined ? { duration_minutes: updates.duration_minutes } : {}),
           ...(updates.work_date !== undefined ? { work_date: updates.work_date } : {}),
+          ...(updates.client_id !== undefined ? { client_id: updates.client_id || null } : {}),
         })
         .eq('id', logId)
-        .select('*, profiles(*)')
+        .select('*, profiles(*), clients(id, name, is_active)')
       if (error) throw error
       // RLS returns no row when the user may not edit this log
       if (!data || data.length === 0) {
@@ -838,12 +1039,15 @@ export const dataService = {
       ...(updates.task_description !== undefined ? { task_description: updates.task_description } : {}),
       ...(updates.duration_minutes !== undefined ? { duration_minutes: updates.duration_minutes } : {}),
       ...(updates.work_date !== undefined ? { work_date: updates.work_date } : {}),
+      ...(updates.client_id !== undefined ? { client_id: updates.client_id || null } : {}),
       updated_at: new Date().toISOString(),
     }
     saveTasks(tasks)
 
     const profiles = getStoredProfiles()
     const prof = profiles.find((p) => p.id === tasks[index].user_id)
+    const clientId = tasks[index].client_id
+    const client = clientId ? getStoredClients().find((c) => c.id === clientId) : undefined
     return {
       ...tasks[index],
       profiles: prof
@@ -855,6 +1059,7 @@ export const dataService = {
             role: prof.role,
           }
         : undefined,
+      clients: client ? { id: client.id, name: client.name, is_active: client.is_active } : null,
     }
   },
 

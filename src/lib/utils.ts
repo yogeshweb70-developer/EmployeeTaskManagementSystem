@@ -62,6 +62,46 @@ export function getMonthStartDateString(): string {
   return toLocalDateString(new Date(now.getFullYear(), now.getMonth(), 1))
 }
 
+// How many days back a task may be logged, counting back from today.
+// 3 means today plus the three previous days are selectable.
+export const MAX_BACKDATE_DAYS = 3
+
+// Today first, then the previous MAX_BACKDATE_DAYS days, as YYYY-MM-DD in local
+// time. This is the full set of dates a task log may be recorded for; anything
+// later than today, or older than the last entry, is rejected.
+export function getSelectableWorkDates(daysBack: number = MAX_BACKDATE_DAYS): string[] {
+  const dates: string[] = []
+  for (let i = 0; i <= daysBack; i++) {
+    const d = new Date()
+    d.setDate(d.getDate() - i)
+    dates.push(toLocalDateString(d))
+  }
+  return dates
+}
+
+// The oldest date a task may still be logged for
+export function getEarliestWorkDateString(daysBack: number = MAX_BACKDATE_DAYS): string {
+  const d = new Date()
+  d.setDate(d.getDate() - daysBack)
+  return toLocalDateString(d)
+}
+
+export function isWorkDateAllowed(isoDate: string, daysBack: number = MAX_BACKDATE_DAYS): boolean {
+  return isoDate <= getTodayDateString() && isoDate >= getEarliestWorkDateString(daysBack)
+}
+
+// "Today", "Yesterday", or a weekday + date for the older options
+export function describeWorkDate(isoDate: string): string {
+  const today = getTodayDateString()
+  if (isoDate === today) return `Today (${formatDateDDMMYYYY(isoDate)})`
+
+  const yesterday = getEarliestWorkDateString(1)
+  if (isoDate === yesterday) return `Yesterday (${formatDateDDMMYYYY(isoDate)})`
+
+  const weekday = new Date(`${isoDate}T00:00:00`).toLocaleDateString(undefined, { weekday: 'long' })
+  return `${weekday} (${formatDateDDMMYYYY(isoDate)})`
+}
+
 // Whole days from one YYYY-MM-DD date to another (inclusive of the start day)
 export function daysActiveSince(startIsoDate: string, endIsoDate: string): number {
   const start = new Date(`${startIsoDate}T00:00:00`)

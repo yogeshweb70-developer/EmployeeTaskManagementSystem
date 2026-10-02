@@ -82,6 +82,18 @@ export interface InvitationPreview {
   expires_at: string
 }
 
+// Admin-managed list shown as a dropdown on the task form
+export interface Client {
+  id: string
+  name: string
+  is_active: boolean
+  created_by?: string | null
+  created_at: string
+  updated_at?: string
+  // Only loaded for the admin Clients screen
+  task_count?: number
+}
+
 export interface TaskLog {
   id: string
   user_id: string
@@ -89,8 +101,15 @@ export interface TaskLog {
   task_description?: string | null
   duration_minutes: number
   work_date: string // Format: YYYY-MM-DD
+  client_id?: string | null
   created_at: string
   updated_at?: string
+  // Joined client, for showing the name on a log
+  clients?: {
+    id: string
+    name: string
+    is_active: boolean
+  } | null
   // Joined relation for Team Leader and Admin views
   profiles?: {
     id: string
@@ -121,6 +140,7 @@ export interface TaskFilterOptions {
   searchQuery?: string
   employeeId?: string
   teamLeaderId?: string
+  clientId?: string
   startDate?: string
   endDate?: string
   specificDate?: string

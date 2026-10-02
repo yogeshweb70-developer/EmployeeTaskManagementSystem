@@ -28,28 +28,42 @@ A modern, production-grade **Employee Task Log Management System** built with **
 
 ---
 
-### 2. Task Logging & Time Tracking
+### 2. Clients (admin-managed)
+- **Admin-only list**: only admins see the **Clients** screen and can add, rename, archive or delete clients. The write RPCs re-check `is_admin()` in the database, so hiding the UI is convenience, not the access control.
+- **Everyone selects, nobody else edits**: employees and team leaders get a read-only **Client** dropdown on the task form. Reading the list is allowed for every active user; every write path is admin-only.
+- **Client is required** on new task logs — enforced by the task form *and* by the `task_logs` INSERT policy. Logs recorded before this feature have no client, so the column stays nullable rather than inventing one for them.
+- **Archive instead of delete**: archiving removes a client from the task dropdown but keeps it on the logs that already reference it. Hard delete is refused while any task log still points at the client.
+- Seeded with: Prem AI, Masters India, Zaptick, P3 LogiQ, Chaitanya's Academy.
+
+---
+
+### 3. Task Logging & Time Tracking
 - **Time Spent Input**: Easy-to-understand Hours and Minutes inputs (e.g., `2 Hours 30 Minutes`). Stored as `duration_minutes` (`150m`) in PostgreSQL and rendered as `2h 30m`.
-- **Date Restriction**: Default date is always the current date. Employees can log work for today or previous dates. **Future dates are strictly disabled** both in the date picker UI and via PostgreSQL database check constraints (`CHECK (work_date <= CURRENT_DATE)`).
+- **Date Restriction — today or the last 3 days**: the Work Date field is a calendar picker defaulting to today. Only today and the three preceding days are selectable; **future dates are strictly disabled**, in the picker, in form validation, and in the database (`CHECK (work_date <= CURRENT_DATE)` plus a backdating floor on the `task_logs` INSERT policy). The window is a single constant, `MAX_BACKDATE_DAYS` in `src/lib/utils.ts`.
+  - The database floor is deliberately 4 days, not 3: `CURRENT_DATE` is UTC while the app submits the user's local (IST) date, and the extra day absorbs that skew rather than rejecting a valid late-evening entry. The exact 3-day rule is enforced in the form.
+  - Editing an existing log still cannot change its work date.
+- **Daily reminder**: the `task-reminder` Edge Function emails employees and team leaders who have not logged anything for the day, at **20:00 IST (14:30 UTC), Monday to Friday**. The schedule lives in `supabase/reminder_schedule.sql`; pg_cron runs in UTC, so the cron expression is `30 14 * * 1-5`. Deactivated accounts are skipped.
 - **All Days in One Page**: Historical work logs are grouped by date with daily total hours and overall period total hours.
 - **Multi-criteria Filtering & Search**: Instant task name/description search, employee filtering, team leader filtering, and custom date range filters.
 
 ---
 
-### 3. Database & Row Level Security (RLS)
+### 4. Database & Row Level Security (RLS)
 The database structure is located in `supabase/schema.sql`, with invite-only access layered on top in `supabase/invite_access.sql`:
 - **`public.profiles`**: Stores user ID, Google OAuth metadata, role (`employee`, `team_leader`, `admin`), and access status (`pending`, `active`, `deactivated`) with `invited_at`, `activated_at`, `deactivated_at` and `invited_by`.
 - **`public.invitations`**: One durable row per invited email — name, role, status (`pending` / `accepted` / `revoked` / `expired`), hashed token, expiry, resend count and acceptance timestamps. Reused across resends, so a person never ends up with duplicate records.
 - **`public.access_events`**: Append-only invitation and access history (`invited`, `resent`, `link_opened`, `accepted`, `revoked`, `deactivated`, `reactivated`, `blocked`).
+- **`public.clients`**: Admin-managed client list (`name`, `is_active`), with a case-insensitive unique name so "Zaptick" and "zaptick" cannot both exist. Created by `supabase/clients.sql`.
 - **`public.team_assignments`**: Manages team assignments enforcing **One Employee → One Team Leader** via unique constraint.
-- **`public.task_logs`**: Stores task records with foreign keys to profiles, duration, and work date.
+- **`public.task_logs`**: Stores task records with foreign keys to profiles and clients, duration, and work date.
 - **PostgreSQL Row Level Security (RLS)**:
   - `public.is_active()`, `public.is_admin()` and `public.is_team_leader()` security-definer helper functions prevent infinite recursion. `is_admin()` and `is_team_leader()` also require an active profile.
   - Every policy requires `public.is_active()`, so deactivation immediately removes all read and write access.
   - Employees can only `SELECT`, `INSERT`, `UPDATE`, and `DELETE` their own logs (`user_id = auth.uid()`).
   - Team leaders can only `SELECT` their own logs + assigned employees' logs (`public.is_assigned_to_team_leader(user_id)`).
   - Admins have full access.
-- **Admin RPCs** (all re-check `is_admin()` in the database): `admin_invite_user`, `admin_resend_invitation`, `admin_revoke_invitation`, `admin_set_user_status`, `admin_list_invitations`, `admin_delete_user`. `get_invitation_by_token` is the only invite function callable anonymously, and it returns just the name, email, status and expiry shown on the accept screen.
+  - Every active user can `SELECT` clients (they need the dropdown); only admins can write them.
+- **Admin RPCs** (all re-check `is_admin()` in the database): `admin_invite_user`, `admin_resend_invitation`, `admin_revoke_invitation`, `admin_set_user_status`, `admin_list_invitations`, `admin_delete_user`, `admin_create_client`, `admin_update_client`, `admin_delete_client`. `get_invitation_by_token` is the only invite function callable anonymously, and it returns just the name, email, status and expiry shown on the accept screen.
 
 ---
 
@@ -93,8 +107,9 @@ VITE_APP_NAME=ZeroAdo TaskLog
 3. Run `supabase/invite_access.sql` to switch the project to invite-only access. **This step is required** — on its own, `schema.sql` still lets any approved-domain Google account self-register. The script is idempotent, so it is safe to re-run on an existing project; existing profiles are kept and marked `active`.
 
    > **Always run these two in order, and never `schema.sql` by itself.** `schema.sql` redefines `handle_new_user()`, `is_admin()` and `is_team_leader()` with `CREATE OR REPLACE`, so running it against a project that is already invite-only reverts the gate — self-registration comes back and deactivated users regain access. Re-running `invite_access.sql` afterwards restores it.
-4. (Optional) Run `supabase/seed.sql` to populate sample data for testing.
-5. Go to **Authentication** -> **Providers** -> **Google**:
+4. Run `supabase/clients.sql` to create the admin-managed client list, add `task_logs.client_id`, and seed the five initial clients. Safe to re-run: the seed never duplicates or overwrites a renamed client.
+5. (Optional) Run `supabase/seed.sql` to populate sample data for testing.
+6. Go to **Authentication** -> **Providers** -> **Google**:
    - Enable Google provider.
    - Enter your **Google Client ID** and **Google Client Secret** from Google Cloud Console.
    - Set Redirect URI to `https://<your-project>.supabase.co/auth/v1/callback`.

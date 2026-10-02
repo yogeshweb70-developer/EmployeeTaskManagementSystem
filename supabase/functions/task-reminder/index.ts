@@ -1,5 +1,5 @@
 // Daily task reminder: emails employees and team leaders who have not logged a task for today (IST).
-// Triggered by pg_cron at 19:00 IST, Monday to Friday (see supabase/reminder_schedule.sql).
+// Triggered by pg_cron at 20:00 IST, Monday to Friday (see supabase/reminder_schedule.sql).
 //
 // Required secrets (supabase secrets set ...):
 //   SMTP_USER     yogesh@zeroado.com
@@ -36,14 +36,15 @@ function reminderEmail(name: string, date: string, appUrl: string) {
   const firstName = escapeHtml(name.split(' ')[0] || name)
   const displayDate = formatDateDDMMYYYY(date)
   const subject = `Reminder: You haven’t logged today’s tasks! - ${displayDate}`
-  const text = `Hi ${firstName},<br>
-  Don’t forget to log your tasks for today.
+  const text = `Hi ${firstName},
+
+Don’t forget to log your tasks for today.
 
 You haven’t logged any tasks for (${displayDate}) yet.
 
-Please add your task entries before the end of the day. Tasks can only be logged for the current day. ${appUrl}
+Please add your task entries before the end of the day: ${appUrl}
 
-Tasks can only be logged for the current day, so today's entries can't be added tomorrow.
+Tasks can be logged for today or the previous 3 days, so anything older than that can no longer be added.
 
 Thanks,
 Zeroado`
@@ -66,7 +67,8 @@ Zeroado`
                   You haven’t logged any tasks for <strong>${displayDate}</strong> yet.
                 </p>
                 <p style="margin:0 0 24px;font-size:14px;line-height:22px;color:#334155;">
-                  Please add your task entries before the end of the day. Tasks can only be logged for the current day.
+                  Please add your task entries before the end of the day. Tasks can be logged for today or the
+                  previous 3 days, so anything older than that can no longer be added.
                 </p>
                 <a href="${appUrl}" style="display:inline-block;background:#0156ff;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:12px 24px;border-radius:100px;">
                   Log Today’s Tasks

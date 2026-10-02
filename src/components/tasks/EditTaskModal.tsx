@@ -15,8 +15,9 @@ import { Input } from '@/components/ui/input'
 import { Field } from '@/components/ui/field'
 import { RichTextEditor } from '@/components/common/RichTextEditor'
 import { RichText } from '@/components/common/RichText'
+import { ClientSelect } from '@/components/clients/ClientSelect'
 import { Button } from '@/components/ui/button'
-import { Clock, Calendar, AlertCircle, Pencil } from 'lucide-react'
+import { Clock, Calendar, AlertCircle, Pencil, Building2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface EditTaskModalProps {
@@ -44,10 +45,11 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
   const [taskDescription, setTaskDescription] = useState('')
   const [hours, setHours] = useState<number | string>(0)
   const [minutes, setMinutes] = useState<number | string>(0)
+  const [clientId, setClientId] = useState<string>('')
   const [workDate, setWorkDate] = useState<string>(today)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [fieldErrors, setFieldErrors] = useState<{ taskName?: string; time?: string }>({})
+  const [fieldErrors, setFieldErrors] = useState<{ taskName?: string; client?: string; time?: string }>({})
   const [isEditing, setIsEditing] = useState(mode === 'edit' && canEdit)
 
   useEffect(() => {
@@ -56,6 +58,7 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
       setTaskDescription(task.task_description || '')
       setHours(Math.floor(task.duration_minutes / 60))
       setMinutes(task.duration_minutes % 60)
+      setClientId(task.client_id || '')
       setWorkDate(task.work_date)
       setError(null)
       setFieldErrors({})
@@ -74,6 +77,7 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
     const totalMinutes = parseHoursAndMinutes(Number(hours), Number(minutes))
     const errors: typeof fieldErrors = {}
     if (!taskName.trim()) errors.taskName = 'Task Name is required.'
+    if (!clientId) errors.client = 'Select the client this task is for.'
     if (totalMinutes <= 0) errors.time = 'Enter hours or minutes greater than 0.'
     else if (Number(hours) > 24) errors.time = 'Hours cannot be more than 24.'
     setFieldErrors(errors)
@@ -93,6 +97,7 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
           task_description: taskDescription,
           duration_minutes: totalMinutes,
           work_date: workDate,
+          client_id: clientId || null,
         },
         user.id,
         user.role
@@ -144,6 +149,28 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
               tabIndex={isEditing ? undefined : -1}
               aria-invalid={!!fieldErrors.taskName}
               aria-describedby={fieldErrors.taskName ? 'edit-task-name-error' : undefined}
+            />
+          </Field>
+
+          {/* Client: picked from the admin-managed list, never edited here */}
+          <Field
+            label="Client"
+            htmlFor="edit-task-client"
+            icon={<Building2 className={`h-3.5 w-3.5 ${fieldErrors.client ? 'text-rose-600' : 'text-blue-600'}`} />}
+            required={isEditing}
+            error={fieldErrors.client}
+          >
+            <ClientSelect
+              id="edit-task-client"
+              value={clientId}
+              onChange={(id) => {
+                setClientId(id)
+                if (fieldErrors.client) setFieldErrors((f) => ({ ...f, client: undefined }))
+              }}
+              readOnly={!isEditing}
+              includeClientId={task.client_id}
+              invalid={!!fieldErrors.client}
+              aria-describedby={fieldErrors.client ? 'edit-task-client-error' : undefined}
             />
           </Field>
 

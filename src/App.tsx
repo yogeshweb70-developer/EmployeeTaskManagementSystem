@@ -67,6 +67,8 @@ const MainApp: React.FC = () => {
         initialTab = 'user-management'
       }
       if (currentTab === 'team-assignments') initialTab = 'team-assignments'
+      // Clients are admin-only; no other role can reach this branch
+      if (currentTab === 'clients') initialTab = 'clients'
       return <AdminDashboard key={currentTab} initialTab={initialTab} />
     }
 

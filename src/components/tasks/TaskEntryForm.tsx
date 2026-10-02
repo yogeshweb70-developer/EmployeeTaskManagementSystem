@@ -1,13 +1,21 @@
 import React, { useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
 import { dataService } from '@/services/dataService'
-import { formatDateDDMMYYYY, getTodayDateString, parseHoursAndMinutes } from '@/lib/utils'
+import {
+  MAX_BACKDATE_DAYS,
+  formatDateDDMMYYYY,
+  getTodayDateString,
+  isWorkDateAllowed,
+  parseHoursAndMinutes,
+} from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Field } from '@/components/ui/field'
 import { RichTextEditor } from '@/components/common/RichTextEditor'
+import { ClientSelect } from '@/components/clients/ClientSelect'
+import { WorkDatePicker } from './WorkDatePicker'
 import { Button } from '@/components/ui/button'
-import { PlusCircle, Clock, Calendar, AlertCircle } from 'lucide-react'
+import { PlusCircle, Clock, Calendar, AlertCircle, Building2 } from 'lucide-react'
 import { toast } from 'sonner'
 import confetti from 'canvas-confetti'
 
@@ -23,10 +31,16 @@ export const TaskEntryForm: React.FC<TaskEntryFormProps> = ({ onTaskAdded }) => 
   const [taskDescription, setTaskDescription] = useState('')
   const [hours, setHours] = useState<number | string>('')
   const [minutes, setMinutes] = useState<number | string>('')
+  const [clientId, setClientId] = useState<string>('')
   const [workDate, setWorkDate] = useState<string>(today)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [validationError, setValidationError] = useState<string | null>(null)
-  const [fieldErrors, setFieldErrors] = useState<{ taskName?: string; time?: string; workDate?: string }>({})
+  const [fieldErrors, setFieldErrors] = useState<{
+    taskName?: string
+    client?: string
+    time?: string
+    workDate?: string
+  }>({})
 
   if (!user) return null
 
@@ -38,9 +52,11 @@ export const TaskEntryForm: React.FC<TaskEntryFormProps> = ({ onTaskAdded }) => 
     const totalMinutes = parseHoursAndMinutes(Number(hours), Number(minutes))
     const errors: typeof fieldErrors = {}
     if (!taskName.trim()) errors.taskName = 'Task Name is required.'
+    if (!clientId) errors.client = 'Select the client this task is for.'
     if (totalMinutes <= 0) errors.time = 'Enter hours or minutes greater than 0.'
     else if (Number(hours) > 24) errors.time = 'Hours cannot be more than 24.'
-    if (workDate !== today) errors.workDate = 'Tasks can only be logged for today.'
+    if (!isWorkDateAllowed(workDate))
+      errors.workDate = `Pick today or one of the previous ${MAX_BACKDATE_DAYS} days. Future dates are not allowed.`
     setFieldErrors(errors)
     if (Object.keys(errors).length > 0) return
 
@@ -53,6 +69,7 @@ export const TaskEntryForm: React.FC<TaskEntryFormProps> = ({ onTaskAdded }) => 
           duration_minutes: totalMinutes,
           work_date: workDate,
           user_id: user.id,
+          client_id: clientId || null,
         },
         user.id,
         user.role
@@ -78,6 +95,7 @@ export const TaskEntryForm: React.FC<TaskEntryFormProps> = ({ onTaskAdded }) => 
       setTaskDescription('')
       setHours('')
       setMinutes('')
+      setClientId('')
       setWorkDate(today)
       setFieldErrors({})
 
@@ -103,7 +121,7 @@ export const TaskEntryForm: React.FC<TaskEntryFormProps> = ({ onTaskAdded }) => 
             <div>
               <CardTitle className="text-base font-bold">Add Task Log</CardTitle>
               <CardDescription className="text-xs">
-                Log your work tasks and time spent for today
+                Log your work tasks and time spent for today or the last {MAX_BACKDATE_DAYS} days
               </CardDescription>
             </div>
           </div>
@@ -136,6 +154,29 @@ export const TaskEntryForm: React.FC<TaskEntryFormProps> = ({ onTaskAdded }) => 
                 aria-invalid={!!fieldErrors.taskName}
                 aria-describedby={fieldErrors.taskName ? 'task-name-error' : undefined}
                 className="bg-white"
+              />
+            </Field>
+
+            {/* Client: the list is managed by admins; everyone else only picks from it */}
+            <Field
+              label="Client"
+              htmlFor="task-client"
+              icon={
+                <Building2 className={`h-3.5 w-3.5 ${fieldErrors.client ? 'text-rose-600' : 'text-blue-600'}`} />
+              }
+              required
+              error={fieldErrors.client}
+              className="md:col-span-2"
+            >
+              <ClientSelect
+                id="task-client"
+                value={clientId}
+                onChange={(id) => {
+                  setClientId(id)
+                  if (fieldErrors.client) setFieldErrors((f) => ({ ...f, client: undefined }))
+                }}
+                invalid={!!fieldErrors.client}
+                aria-describedby={fieldErrors.client ? 'task-client-error' : undefined}
               />
             </Field>
 
@@ -209,22 +250,26 @@ export const TaskEntryForm: React.FC<TaskEntryFormProps> = ({ onTaskAdded }) => 
               </div>
             </Field>
 
-            {/* Work date is locked to today */}
+            {/* Today or the previous 3 days; future dates are unselectable */}
             <Field
               label="Work Date"
               htmlFor="work-date"
-              icon={<Calendar className="h-3.5 w-3.5 text-blue-600" />}
+              icon={
+                <Calendar className={`h-3.5 w-3.5 ${fieldErrors.workDate ? 'text-rose-600' : 'text-blue-600'}`} />
+              }
               required
               error={fieldErrors.workDate}
-              aside={<span className="text-[10px] text-slate-500">Today only</span>}
+              aside={<span className="text-[10px] text-slate-500">Last {MAX_BACKDATE_DAYS} days</span>}
             >
-              <Input
+              <WorkDatePicker
                 id="work-date"
-                type="text"
-                value={formatDateDDMMYYYY(workDate)}
-                readOnly
-                aria-invalid={!!fieldErrors.workDate}
-                className="cursor-not-allowed"
+                value={workDate}
+                onChange={(date) => {
+                  setWorkDate(date)
+                  if (fieldErrors.workDate) setFieldErrors((f) => ({ ...f, workDate: undefined }))
+                }}
+                invalid={!!fieldErrors.workDate}
+                aria-describedby={fieldErrors.workDate ? 'work-date-error' : undefined}
               />
             </Field>
           </div>

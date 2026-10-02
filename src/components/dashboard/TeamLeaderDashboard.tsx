@@ -13,6 +13,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import {
@@ -352,12 +353,13 @@ export const TeamLeaderDashboard: React.FC<TeamLeaderDashboardProps> = ({
 
                 {/* Date Filter */}
                 <div className="lg:col-span-3">
-                  <Input
-                    type="date"
+                  <DatePicker
                     value={filterDate}
-                    onChange={(e) => setFilterDate(e.target.value)}
-                    className="bg-white text-xs"
+                    onChange={setFilterDate}
                     placeholder="Specific date"
+                    aria-label="Filter by date"
+                    clearable
+                    triggerClassName="text-xs"
                   />
                 </div>
 

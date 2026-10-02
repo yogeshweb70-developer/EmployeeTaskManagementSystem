@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { ChangeRoleModal } from '@/components/admin/ChangeRoleModal'
@@ -16,6 +17,7 @@ import { DeleteUserDialog } from '@/components/admin/DeleteUserDialog'
 import { AssignLeaderModal } from '@/components/admin/AssignLeaderModal'
 import { InviteUserModal } from '@/components/admin/InviteUserModal'
 import { UserStatusBadge } from '@/components/admin/UserStatusBadge'
+import { ClientsManager } from '@/components/clients/ClientsManager'
 import { TeamAssignmentModal } from '@/components/team/TeamAssignmentModal'
 import { EditTaskModal } from '@/components/tasks/EditTaskModal'
 import { DeleteConfirmDialog } from '@/components/tasks/DeleteConfirmDialog'
@@ -42,6 +44,7 @@ import {
   Ban,
   RotateCcw,
   XCircle,
+  Building2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { RichText, LinkifiedText, Highlight, richTextToPlain } from '@/components/common/RichText'
@@ -431,7 +434,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       {/* Tabs: All Task Logs | User Management | Team Assignments */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="p-1 w-full sm:w-auto grid grid-cols-3">
+        <TabsList className="p-1 w-full sm:w-auto grid grid-cols-2 sm:grid-cols-4">
           <TabsTrigger value="all-tasks" className="text-xs sm:text-sm">
             All Task Logs
           </TabsTrigger>
@@ -440,6 +443,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </TabsTrigger>
           <TabsTrigger value="team-assignments" className="text-xs sm:text-sm">
             Team Assignments
+          </TabsTrigger>
+          <TabsTrigger value="clients" className="text-xs sm:text-sm">
+            Clients
           </TabsTrigger>
         </TabsList>
 
@@ -535,23 +541,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                 {/* Date range From */}
                 <div className="lg:col-span-2">
-                  <Input
-                    type="date"
+                  <DatePicker
                     value={filterStartDate}
-                    onChange={(e) => setFilterStartDate(e.target.value)}
-                    className="bg-white text-xs"
-                    placeholder="From Date"
+                    onChange={setFilterStartDate}
+                    placeholder="From date"
+                    aria-label="Filter from date"
+                    max={filterEndDate || undefined}
+                    clearable
+                    triggerClassName="text-xs"
                   />
                 </div>
 
                 {/* Date range To */}
                 <div className="lg:col-span-2">
-                  <Input
-                    type="date"
+                  <DatePicker
                     value={filterEndDate}
-                    onChange={(e) => setFilterEndDate(e.target.value)}
-                    className="bg-white text-xs"
-                    placeholder="To Date"
+                    onChange={setFilterEndDate}
+                    placeholder="To date"
+                    aria-label="Filter to date"
+                    min={filterStartDate || undefined}
+                    clearable
+                    triggerClassName="text-xs"
                   />
                 </div>
 
@@ -1354,6 +1364,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* TAB 4: CLIENTS (ADMIN-ONLY). Everyone else only sees the dropdown. */}
+        <TabsContent value="clients" className="space-y-4">
+          <ClientsManager />
         </TabsContent>
       </Tabs>
 

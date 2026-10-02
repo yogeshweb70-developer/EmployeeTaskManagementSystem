@@ -5,6 +5,7 @@ import { dataService } from '@/services/dataService'
 import { formatMinutes } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { EditTaskModal } from './EditTaskModal'
@@ -20,6 +21,7 @@ import {
   ChevronDown,
   ChevronUp,
   Inbox,
+  Building2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { format, parseISO } from 'date-fns'
@@ -183,28 +185,28 @@ export const TaskLogList: React.FC<TaskLogListProps> = ({
 
             {/* Start Date */}
             <div className="lg:col-span-3">
-              <div className="relative">
-                <Input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  placeholder="From date"
-                  className="bg-white text-xs"
-                />
-              </div>
+              <DatePicker
+                value={startDate}
+                onChange={setStartDate}
+                placeholder="From date"
+                aria-label="Filter from date"
+                max={endDate || undefined}
+                clearable
+                triggerClassName="text-xs"
+              />
             </div>
 
             {/* End Date */}
             <div className="lg:col-span-2">
-              <div className="relative">
-                <Input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  placeholder="To date"
-                  className="bg-white text-xs"
-                />
-              </div>
+              <DatePicker
+                value={endDate}
+                onChange={setEndDate}
+                placeholder="To date"
+                aria-label="Filter to date"
+                min={startDate || undefined}
+                clearable
+                triggerClassName="text-xs"
+              />
             </div>
 
             {/* Reset Filter Button */}
@@ -310,6 +312,15 @@ export const TaskLogList: React.FC<TaskLogListProps> = ({
                           {showUserInfo && task.profiles && (
                             <Badge variant="outline" className="text-[10px] text-slate-600">
                               <Highlight text={task.profiles.name} query={searchQuery} />
+                            </Badge>
+                          )}
+                          {task.clients && (
+                            <Badge
+                              variant="outline"
+                              className="gap-1 border-blue-200 bg-blue-50/60 text-[10px] text-blue-700"
+                            >
+                              <Building2 className="h-2.5 w-2.5" />
+                              <Highlight text={task.clients.name} query={searchQuery} />
                             </Badge>
                           )}
                         </div>

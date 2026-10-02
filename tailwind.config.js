@@ -105,13 +105,25 @@ export default {
         pulseGlow: {
           '0%, 100%': { opacity: '0.6', transform: 'scale(1)' },
           '50%': { opacity: '1', transform: 'scale(1.03)' },
-        }
+        },
+        // Dropdown open/close. Defined here rather than pulling in
+        // tailwindcss-animate, which this project does not install.
+        'popover-in': {
+          from: { opacity: '0', transform: 'scale(0.96) translateY(-2px)' },
+          to: { opacity: '1', transform: 'scale(1) translateY(0)' },
+        },
+        'popover-out': {
+          from: { opacity: '1', transform: 'scale(1) translateY(0)' },
+          to: { opacity: '0', transform: 'scale(0.96) translateY(-2px)' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
         shine: 'shine 5s linear infinite',
         pulseGlow: 'pulseGlow 2.5s ease-in-out infinite',
+        'popover-in': 'popover-in 0.14s ease-out',
+        'popover-out': 'popover-out 0.1s ease-in',
       },
     },
   },

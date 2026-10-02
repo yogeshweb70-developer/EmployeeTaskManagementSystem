@@ -33,6 +33,7 @@
     "dompurify": "^3.4.16",
     "lucide-react": "^1.49.0",
     "react": "^19.2.8",
+    "react-day-picker": "^10.0.2",
     "react-dom": "^19.2.8",
     "sonner": "^2.0.8",
     "tailwind-merge": "^3.7.0"

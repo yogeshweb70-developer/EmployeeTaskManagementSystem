@@ -12,6 +12,7 @@ import {
   LogOut,
   X,
   FileSpreadsheet,
+  Building2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -62,6 +63,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           { id: 'team-leaders', label: 'Team Leaders', icon: UserCheck },
           { id: 'user-management', label: 'User Management', icon: Shield },
           { id: 'team-assignments', label: 'Team Assignments', icon: Layers },
+          { id: 'clients', label: 'Clients', icon: Building2 },
           { id: 'profile', label: 'Profile', icon: User },
         ]
       default:

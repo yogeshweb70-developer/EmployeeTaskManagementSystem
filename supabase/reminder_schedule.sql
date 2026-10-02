@@ -1,6 +1,7 @@
 -- ==============================================================================
 -- Daily task reminder schedule
--- Calls the `task-reminder` Edge Function at 19:00 IST (13:30 UTC), Monday to Friday.
+-- Calls the `task-reminder` Edge Function at 20:00 IST (14:30 UTC), Monday to Friday.
+-- pg_cron schedules in UTC, so 8 PM IST is 14:30 UTC (IST = UTC+5:30).
 -- Run once in the Supabase SQL Editor after deploying the function.
 -- Replace <CRON_SECRET> with the same value you set as the function's CRON_SECRET secret.
 -- ==============================================================================
@@ -18,7 +19,7 @@ WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'daily-task-reminder');
 
 SELECT cron.schedule(
     'daily-task-reminder',
-    '30 13 * * 1-5',
+    '30 14 * * 1-5',
     $$
     SELECT net.http_post(
         url := 'https://cmmeevutwxaxrygwaiyd.supabase.co/functions/v1/task-reminder',
