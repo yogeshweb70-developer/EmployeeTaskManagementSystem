@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { DatePicker } from '@/components/ui/date-picker'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { ChangeRoleModal } from '@/components/admin/ChangeRoleModal'
@@ -509,34 +510,42 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-12">
                 {/* Employee Filter */}
                 <div className="lg:col-span-3">
-                  <select
+                  <Select
                     value={filterEmployeeId}
-                    onChange={(e) => setFilterEmployeeId(e.target.value)}
-                    className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-xs ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
+                    onValueChange={setFilterEmployeeId}
                   >
-                    <option value="all">Filter by Employee: All</option>
+                    <SelectTrigger className="text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Filter by Employee: All</SelectItem>
                     {employeesList.map((emp) => (
-                      <option key={emp.id} value={emp.id}>
+                        <SelectItem key={emp.id} value={emp.id}>
                         {emp.name}
-                      </option>
+                        </SelectItem>
                     ))}
-                  </select>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 {/* Team Leader Filter */}
                 <div className="lg:col-span-3">
-                  <select
+                  <Select
                     value={filterLeaderId}
-                    onChange={(e) => setFilterLeaderId(e.target.value)}
-                    className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-xs ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
+                    onValueChange={setFilterLeaderId}
                   >
-                    <option value="all">Filter by Team Leader: All</option>
+                    <SelectTrigger className="text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Filter by Team Leader: All</SelectItem>
                     {teamLeadersList.map((ldr) => (
-                      <option key={ldr.id} value={ldr.id}>
+                        <SelectItem key={ldr.id} value={ldr.id}>
                         {ldr.name}
-                      </option>
+                        </SelectItem>
                     ))}
-                  </select>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 {/* Date range From */}
@@ -865,31 +874,39 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
 
                 <div className="sm:col-span-3">
-                  <select
+                  <Select
                     value={userRoleFilter}
-                    onChange={(e) => setUserRoleFilter(e.target.value)}
+                    onValueChange={setUserRoleFilter}
                     aria-label="Filter by role"
-                    className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-xs ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
                   >
-                    <option value="all">All Roles</option>
-                    <option value="employee">Employees Only</option>
-                    <option value="team_leader">Team Leaders Only</option>
-                    <option value="admin">Admins Only</option>
-                  </select>
+                    <SelectTrigger className="text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Roles</SelectItem>
+                      <SelectItem value="employee">Employees Only</SelectItem>
+                      <SelectItem value="team_leader">Team Leaders Only</SelectItem>
+                      <SelectItem value="admin">Admins Only</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="sm:col-span-3">
-                  <select
+                  <Select
                     value={userStatusFilter}
-                    onChange={(e) => setUserStatusFilter(e.target.value)}
+                    onValueChange={setUserStatusFilter}
                     aria-label="Filter by access status"
-                    className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-xs ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
                   >
-                    <option value="all">All Statuses</option>
-                    <option value="active">Active</option>
-                    <option value="pending">Pending Invite</option>
-                    <option value="deactivated">Deactivated</option>
-                  </select>
+                    <SelectTrigger className="text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Statuses</SelectItem>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="pending">Pending Invite</SelectItem>
+                      <SelectItem value="deactivated">Deactivated</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 

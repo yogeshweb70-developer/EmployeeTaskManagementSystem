@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Users, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -126,18 +127,22 @@ export const AssignLeaderModal: React.FC<AssignLeaderModalProps> = ({
           {/* Leader Selection */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-slate-700">Designated Team Leader</label>
-            <select
-              value={selectedLeaderId}
-              onChange={(e) => setSelectedLeaderId(e.target.value)}
-              className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-xs ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
+            <Select
+              value={selectedLeaderId || 'none'}
+              onValueChange={(value) => setSelectedLeaderId(value === 'none' ? '' : value)}
             >
-              <option value="">(None / Unassigned)</option>
-              {leaders.map((leader) => (
-                <option key={leader.id} value={leader.id}>
-                  {leader.name} ({leader.email})
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">(None / Unassigned)</SelectItem>
+                {leaders.map((leader) => (
+                  <SelectItem key={leader.id} value={leader.id}>
+                    {leader.name} ({leader.email})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 

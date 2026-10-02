@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { DatePicker } from '@/components/ui/date-picker'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import {
@@ -337,18 +338,22 @@ export const TeamLeaderDashboard: React.FC<TeamLeaderDashboardProps> = ({
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-12">
                 {/* Employee Filter */}
                 <div className="lg:col-span-4">
-                  <select
+                  <Select
                     value={filterEmployeeId}
-                    onChange={(e) => setFilterEmployeeId(e.target.value)}
-                    className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-xs ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
+                    onValueChange={setFilterEmployeeId}
                   >
-                    <option value="all">All Assigned Team Members</option>
+                    <SelectTrigger className="text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Assigned Team Members</SelectItem>
                     {assignedEmployees.map((emp) => (
-                      <option key={emp.id} value={emp.id}>
+                        <SelectItem key={emp.id} value={emp.id}>
                         {emp.name} ({emp.email})
-                      </option>
+                        </SelectItem>
                     ))}
-                  </select>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 {/* Date Filter */}
