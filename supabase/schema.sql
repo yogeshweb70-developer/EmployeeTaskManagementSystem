@@ -1,11 +1,17 @@
 -- ==============================================================================
 -- Employee Task Log Management System - Supabase PostgreSQL Schema & RLS Policies
 -- ==============================================================================
--- IMPORTANT: run supabase/invite_access.sql straight after this file.
--- Access is invite-only. invite_access.sql replaces the handle_new_user trigger
--- and the RLS policies below with invite-aware versions, and adds the
--- invitations / access_events tables. On its own, this file still allows any
--- @zeroado.com Google account to self-register.
+-- IMPORTANT: run supabase/invite_access.sql straight after this file, EVERY time.
+--
+-- Access is invite-only, but that lives entirely in invite_access.sql. This file
+-- defines handle_new_user(), is_admin() and is_team_leader() in their original
+-- self-registration form, with CREATE OR REPLACE -- so running this file on a
+-- project that is already invite-only SILENTLY REVERTS THE GATE: any
+-- @zeroado.com Google account could sign itself up again, and deactivated users
+-- would regain access.
+--
+-- Re-running this file alone is therefore never safe. Always follow it with
+-- invite_access.sql, which restores the invite-aware versions.
 -- ==============================================================================
 
 -- 1. Create Enums and Extensions
@@ -229,6 +235,7 @@ ALTER TABLE public.task_logs ENABLE ROW LEVEL SECURITY;
 -- ------------------------------------------------------------------------------
 
 -- Everyone authenticated can view profiles (needed to see names, avatars, team leaders)
+DROP POLICY IF EXISTS "Authenticated users can view profiles" ON public.profiles;
 CREATE POLICY "Authenticated users can view profiles"
     ON public.profiles
     FOR SELECT
@@ -236,6 +243,7 @@ CREATE POLICY "Authenticated users can view profiles"
     USING (true);
 
 -- Only Admin can insert or change roles/profiles of anyone
+DROP POLICY IF EXISTS "Admins have full access to profiles" ON public.profiles;
 CREATE POLICY "Admins have full access to profiles"
     ON public.profiles
     FOR ALL
@@ -244,6 +252,7 @@ CREATE POLICY "Admins have full access to profiles"
     WITH CHECK (public.is_admin());
 
 -- Users can update their own non-role profile details
+DROP POLICY IF EXISTS "Users can update their own profile basic info" ON public.profiles;
 CREATE POLICY "Users can update their own profile basic info"
     ON public.profiles
     FOR UPDATE
@@ -262,6 +271,7 @@ CREATE POLICY "Users can update their own profile basic info"
 -- 1. Admins can view all team assignments
 -- 2. Team Leaders can view their own team assignments
 -- 3. Employees can view assignments where they are the employee
+DROP POLICY IF EXISTS "Team assignments select policy" ON public.team_assignments;
 CREATE POLICY "Team assignments select policy"
     ON public.team_assignments
     FOR SELECT
@@ -274,6 +284,7 @@ CREATE POLICY "Team assignments select policy"
 
 -- Insert/Delete/Update policies:
 -- Admin can manage any assignment
+DROP POLICY IF EXISTS "Admins can manage all team assignments" ON public.team_assignments;
 CREATE POLICY "Admins can manage all team assignments"
     ON public.team_assignments
     FOR ALL
@@ -282,6 +293,7 @@ CREATE POLICY "Admins can manage all team assignments"
     WITH CHECK (public.is_admin());
 
 -- Team Leaders can add or remove employees from their own team
+DROP POLICY IF EXISTS "Team leaders can manage their own team assignments" ON public.team_assignments;
 CREATE POLICY "Team leaders can manage their own team assignments"
     ON public.team_assignments
     FOR INSERT
@@ -291,6 +303,7 @@ CREATE POLICY "Team leaders can manage their own team assignments"
         AND team_leader_id = auth.uid()
     );
 
+DROP POLICY IF EXISTS "Team leaders can delete from their own team assignments" ON public.team_assignments;
 CREATE POLICY "Team leaders can delete from their own team assignments"
     ON public.team_assignments
     FOR DELETE
@@ -308,6 +321,7 @@ CREATE POLICY "Team leaders can delete from their own team assignments"
 -- 1. Admins can select ALL task logs
 -- 2. Team Leaders can select their own task logs + assigned employees' task logs
 -- 3. Employees can select ONLY their own task logs
+DROP POLICY IF EXISTS "Task logs select policy" ON public.task_logs;
 CREATE POLICY "Task logs select policy"
     ON public.task_logs
     FOR SELECT
@@ -323,6 +337,7 @@ CREATE POLICY "Task logs select policy"
 
 -- INSERT policy:
 -- Users can only insert task logs for themselves, with valid work_date <= CURRENT_DATE
+DROP POLICY IF EXISTS "Users can insert their own task logs" ON public.task_logs;
 CREATE POLICY "Users can insert their own task logs"
     ON public.task_logs
     FOR INSERT
@@ -335,6 +350,7 @@ CREATE POLICY "Users can insert their own task logs"
 
 -- UPDATE policy:
 -- Users can only update their own task logs (or Admin can update)
+DROP POLICY IF EXISTS "Users can update their own task logs" ON public.task_logs;
 CREATE POLICY "Users can update their own task logs"
     ON public.task_logs
     FOR UPDATE
@@ -350,6 +366,7 @@ CREATE POLICY "Users can update their own task logs"
 
 -- DELETE policy:
 -- Users can delete their own task logs (or Admin can delete)
+DROP POLICY IF EXISTS "Users can delete their own task logs" ON public.task_logs;
 CREATE POLICY "Users can delete their own task logs"
     ON public.task_logs
     FOR DELETE

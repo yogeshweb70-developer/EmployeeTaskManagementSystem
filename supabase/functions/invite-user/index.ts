@@ -198,6 +198,47 @@ Deno.serve(async (req) => {
     return json({ error: `Your access status is "${callerProfile.status}", so you cannot send invitations.` }, 403)
   }
 
+  // ---- Config check: authenticate against Gmail without sending anything --
+  // Lets an admin confirm APP_URL and the SMTP secrets are right without
+  // burning a real invitation on a failed send.
+  if (action === 'verify') {
+    const result: Record<string, unknown> = {
+      app_url: appUrl,
+      smtp_user: smtpUser ?? '(not set)',
+      smtp_pass_set: Boolean(smtpPass),
+      smtp_pass_length: smtpPass ? smtpPass.length : 0,
+    }
+
+    if (!smtpUser || !smtpPass) {
+      result.smtp_ok = false
+      result.smtp_error = 'SMTP_USER and/or SMTP_PASS are not set on this project.'
+      return json(result)
+    }
+
+    // A Google App Password is exactly 16 characters once the spaces are removed
+    if (/\s/.test(smtpPass)) {
+      result.smtp_hint = 'SMTP_PASS contains whitespace. Google shows app passwords in four blocks; the spaces must be removed.'
+    } else if (smtpPass.length !== 16) {
+      result.smtp_hint = `SMTP_PASS is ${smtpPass.length} characters. A Google App Password is 16. This looks like an account password rather than an app password.`
+    }
+
+    try {
+      const probe = nodemailer.createTransport({
+        host: 'smtp.gmail.com',
+        port: 465,
+        secure: true,
+        auth: { user: smtpUser, pass: smtpPass },
+      })
+      await probe.verify()
+      result.smtp_ok = true
+    } catch (err) {
+      result.smtp_ok = false
+      result.smtp_error = err instanceof Error ? err.message : String(err)
+    }
+
+    return json(result)
+  }
+
   // ---- Create or refresh the invitation ----------------------------------
   let rpcResult: {
     invitation_id: string

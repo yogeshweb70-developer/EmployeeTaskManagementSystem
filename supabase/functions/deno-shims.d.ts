@@ -22,6 +22,8 @@ declare module 'npm:nodemailer@6' {
   }
   interface Transporter {
     sendMail(options: SendMailOptions): Promise<unknown>
+    /** Authenticates against the SMTP server without sending a message. */
+    verify(): Promise<true>
   }
   const nodemailer: {
     createTransport(options: {

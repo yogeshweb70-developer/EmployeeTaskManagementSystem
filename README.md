@@ -91,6 +91,8 @@ VITE_APP_NAME=ZeroAdo TaskLog
 1. Open your **Supabase Dashboard** -> **SQL Editor**.
 2. Run the script in `supabase/schema.sql` to initialize tables, constraints, trigger functions, and RLS policies.
 3. Run `supabase/invite_access.sql` to switch the project to invite-only access. **This step is required** — on its own, `schema.sql` still lets any approved-domain Google account self-register. The script is idempotent, so it is safe to re-run on an existing project; existing profiles are kept and marked `active`.
+
+   > **Always run these two in order, and never `schema.sql` by itself.** `schema.sql` redefines `handle_new_user()`, `is_admin()` and `is_team_leader()` with `CREATE OR REPLACE`, so running it against a project that is already invite-only reverts the gate — self-registration comes back and deactivated users regain access. Re-running `invite_access.sql` afterwards restores it.
 4. (Optional) Run `supabase/seed.sql` to populate sample data for testing.
 5. Go to **Authentication** -> **Providers** -> **Google**:
    - Enable Google provider.
