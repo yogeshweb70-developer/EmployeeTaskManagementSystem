@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { useAuth } from '@/context/AuthContext'
 import { dataService } from '@/services/dataService'
-import { Profile, TaskLog, TeamAssignment, DashboardMetrics, UserRole } from '@/types'
-import { formatDateDDMMYYYY, formatMinutes, getTodayDateString, getWeekStartDateString, getMonthStartDateString, daysActiveSince } from '@/lib/utils'
+import { Profile, TaskLog, TeamAssignment, DashboardMetrics, ManagedUser } from '@/types'
+import { cn, formatDateDDMMYYYY, formatMinutes, getTodayDateString, getWeekStartDateString, getMonthStartDateString, daysActiveSince } from '@/lib/utils'
 import { SpotlightCard } from '@/components/react-bits/SpotlightCard'
 import { BlurText } from '@/components/react-bits/BlurText'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -14,6 +14,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { ChangeRoleModal } from '@/components/admin/ChangeRoleModal'
 import { DeleteUserDialog } from '@/components/admin/DeleteUserDialog'
 import { AssignLeaderModal } from '@/components/admin/AssignLeaderModal'
+import { InviteUserModal } from '@/components/admin/InviteUserModal'
+import { UserStatusBadge } from '@/components/admin/UserStatusBadge'
 import { TeamAssignmentModal } from '@/components/team/TeamAssignmentModal'
 import { EditTaskModal } from '@/components/tasks/EditTaskModal'
 import { DeleteConfirmDialog } from '@/components/tasks/DeleteConfirmDialog'
@@ -34,6 +36,12 @@ import {
   Calendar,
   Briefcase,
   ChevronRight,
+  MailPlus,
+  MailCheck,
+  RefreshCw,
+  Ban,
+  RotateCcw,
+  XCircle,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { RichText, LinkifiedText, Highlight, richTextToPlain } from '@/components/common/RichText'
@@ -56,6 +64,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     todayTasksCount: 0,
   })
   const [profiles, setProfiles] = useState<Profile[]>([])
+  // Accounts and outstanding invitations in one list, for the User Management table
+  const [managedUsers, setManagedUsers] = useState<ManagedUser[]>([])
   const [taskLogs, setTaskLogs] = useState<TaskLog[]>([])
   const [assignments, setAssignments] = useState<TeamAssignment[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -80,18 +90,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // Filter for User Management table
   const [userSearch, setUserSearch] = useState<string>('')
   const [userRoleFilter, setUserRoleFilter] = useState<string>('all')
+  const [userStatusFilter, setUserStatusFilter] = useState<string>('all')
+
+  // Invite / access controls
+  const [isInviteOpen, setIsInviteOpen] = useState(false)
+  // Row key currently running an action, so only that row shows a spinner
+  const [busyRowKey, setBusyRowKey] = useState<string | null>(null)
 
   const loadAllData = useCallback(async () => {
     setIsLoading(true)
     try {
-      const [fetchedProfiles, fetchedTasks, fetchedAssignments, fetchedMetrics] = await Promise.all([
-        dataService.getProfiles(),
-        dataService.getTaskLogs('admin', 'admin'),
-        dataService.getTeamAssignments(),
-        dataService.getAdminMetrics(),
-      ])
+      const [fetchedProfiles, fetchedManagedUsers, fetchedTasks, fetchedAssignments, fetchedMetrics] =
+        await Promise.all([
+          dataService.getProfiles(),
+          dataService.getManagedUsers(),
+          dataService.getTaskLogs('admin', 'admin'),
+          dataService.getTeamAssignments(),
+          dataService.getAdminMetrics(),
+        ])
 
       setProfiles(fetchedProfiles)
+      setManagedUsers(fetchedManagedUsers)
       setTaskLogs(fetchedTasks)
       setAssignments(fetchedAssignments)
       setMetrics(fetchedMetrics)
@@ -153,19 +172,96 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     })
   }, [scopedTasks, filterStartDate, filterEndDate, filterSearch])
 
-  // Filtered users
-  const filteredProfiles = useMemo(() => {
-    return profiles.filter((p) => {
-      if (userRoleFilter !== 'all' && p.role !== userRoleFilter) return false
+  // Filtered users: accounts and outstanding invitations together
+  const filteredUsers = useMemo(() => {
+    return managedUsers.filter((u) => {
+      if (userRoleFilter !== 'all' && u.role !== userRoleFilter) return false
+
+      if (userStatusFilter !== 'all') {
+        // "pending" covers every invitation that has not been accepted yet
+        const matchesStatus =
+          userStatusFilter === 'pending' ? u.kind === 'invitation' : u.kind === 'profile' && u.status === userStatusFilter
+        if (!matchesStatus) return false
+      }
+
       if (userSearch.trim()) {
         const q = userSearch.toLowerCase().trim()
-        if (!p.name.toLowerCase().includes(q) && !p.email.toLowerCase().includes(q)) {
+        if (!u.name.toLowerCase().includes(q) && !u.email.toLowerCase().includes(q)) {
           return false
         }
       }
       return true
     })
-  }, [profiles, userRoleFilter, userSearch])
+  }, [managedUsers, userRoleFilter, userStatusFilter, userSearch])
+
+  // Counts for the status summary strip
+  const accessCounts = useMemo(() => {
+    return {
+      active: managedUsers.filter((u) => u.kind === 'profile' && u.status === 'active').length,
+      pending: managedUsers.filter((u) => u.kind === 'invitation' && u.invitationStatus === 'pending').length,
+      deactivated: managedUsers.filter((u) => u.kind === 'profile' && u.status === 'deactivated').length,
+    }
+  }, [managedUsers])
+
+  // Issue a fresh link for an invitation that was never accepted
+  const handleResendInvite = async (row: ManagedUser) => {
+    if (!row.invitation) return
+    setBusyRowKey(row.key)
+    try {
+      const result = await dataService.resendInvitation(row.invitation.id)
+      if (result.emailed) {
+        toast.success(`Invitation resent to ${result.email}`)
+      } else {
+        toast.warning(`New link created for ${result.email}`, {
+          description: result.email_error || 'The email could not be sent; share the link manually.',
+        })
+      }
+      loadAllData()
+    } catch (err: any) {
+      toast.error('Could not resend the invitation', { description: err.message })
+    } finally {
+      setBusyRowKey(null)
+    }
+  }
+
+  // Cancel a pending invitation; the record and its history are kept
+  const handleRevokeInvite = async (row: ManagedUser) => {
+    if (!row.invitation) return
+    setBusyRowKey(row.key)
+    try {
+      await dataService.revokeInvitation(row.invitation.id)
+      toast.success(`Invitation for ${row.email} cancelled`)
+      loadAllData()
+    } catch (err: any) {
+      toast.error('Could not cancel the invitation', { description: err.message })
+    } finally {
+      setBusyRowKey(null)
+    }
+  }
+
+  // Turn an existing account's access off or back on
+  const handleToggleAccess = async (row: ManagedUser) => {
+    if (!row.profile || !user) return
+    const nextStatus = row.status === 'deactivated' ? 'active' : 'deactivated'
+    setBusyRowKey(row.key)
+    try {
+      await dataService.setUserStatus(row.profile.id, nextStatus, user.id, user.role)
+      toast.success(
+        nextStatus === 'deactivated' ? `${row.name}'s access has been disabled` : `${row.name} can sign in again`,
+        {
+          description:
+            nextStatus === 'deactivated'
+              ? 'They are signed out and blocked even if they authenticate with Google again.'
+              : 'Their previous task logs and team assignments are untouched.',
+        }
+      )
+      loadAllData()
+    } catch (err: any) {
+      toast.error('Could not update access', { description: err.message })
+    } finally {
+      setBusyRowKey(null)
+    }
+  }
 
   // Overall minutes in filtered tasks
   const periodTotalMinutes = useMemo(() => {
@@ -270,7 +366,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="text-2xl font-bold tracking-tight text-slate-900">
               {metrics.totalEmployees}
             </div>
-            <p className="mt-1 text-xs text-slate-400">Registered staff members</p>
+            <p className="mt-1 text-xs text-slate-400">
+              Active staff members
+              {metrics.pendingInvites ? ` · ${metrics.pendingInvites} invite${metrics.pendingInvites === 1 ? '' : 's'} pending` : ''}
+              {metrics.deactivatedUsers ? ` · ${metrics.deactivatedUsers} deactivated` : ''}
+            </p>
           </div>
         </SpotlightCard>
 
@@ -288,7 +388,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="text-2xl font-bold tracking-tight text-slate-900">
               {metrics.totalTeamLeaders}
             </div>
-            <p className="mt-1 text-xs text-slate-400">Supervising leads</p>
+            <p className="mt-1 text-xs text-slate-400">Active supervising leads</p>
           </div>
         </SpotlightCard>
 
@@ -336,7 +436,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             All Task Logs
           </TabsTrigger>
           <TabsTrigger value="user-management" className="text-xs sm:text-sm">
-            User Management ({profiles.length})
+            User Management ({managedUsers.length})
           </TabsTrigger>
           <TabsTrigger value="team-assignments" className="text-xs sm:text-sm">
             Team Assignments
@@ -695,22 +795,56 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         <TabsContent value="user-management" className="space-y-4">
           <Card className="border border-slate-200 shadow-xs">
             <CardHeader className="pb-3">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <CardTitle className="text-base font-bold text-slate-900">
-                    User Management & Role Permissions
+                    User Management &amp; Access Control
                   </CardTitle>
                   <CardDescription className="text-xs">
-                    Manage users, change system roles, assign team leaders, and control company access
+                    Access is invite only. Invite people by name and email, track whether the invitation is still
+                    pending or has been accepted, and switch access on or off
                   </CardDescription>
                 </div>
+
+                <Button
+                  onClick={() => setIsInviteOpen(true)}
+                  className="h-9 shrink-0 gap-1.5 bg-blue-600 text-xs font-semibold text-white hover:bg-blue-700"
+                >
+                  <MailPlus className="h-3.5 w-3.5" />
+                  Invite User
+                </Button>
               </div>
             </CardHeader>
 
             <CardContent className="space-y-4">
-              {/* Search and Role Filter */}
+              {/* Access status summary */}
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+                <div className="flex items-center gap-2.5 rounded-lg border border-emerald-100 bg-emerald-50/60 px-3 py-2.5">
+                  <UserCheck className="h-4 w-4 shrink-0 text-emerald-600" />
+                  <div>
+                    <div className="text-sm font-bold text-slate-900">{accessCounts.active}</div>
+                    <div className="text-[11px] text-slate-500">Active users</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2.5 rounded-lg border border-amber-100 bg-amber-50/60 px-3 py-2.5">
+                  <MailCheck className="h-4 w-4 shrink-0 text-amber-600" />
+                  <div>
+                    <div className="text-sm font-bold text-slate-900">{accessCounts.pending}</div>
+                    <div className="text-[11px] text-slate-500">Pending invites</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2.5 rounded-lg border border-rose-100 bg-rose-50/60 px-3 py-2.5">
+                  <Ban className="h-4 w-4 shrink-0 text-rose-600" />
+                  <div>
+                    <div className="text-sm font-bold text-slate-900">{accessCounts.deactivated}</div>
+                    <div className="text-[11px] text-slate-500">Deactivated</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Search, Role and Status filters */}
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-12">
-                <div className="relative sm:col-span-8">
+                <div className="relative sm:col-span-6">
                   <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                   <Input
                     placeholder="Search users by name or email..."
@@ -720,16 +854,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   />
                 </div>
 
-                <div className="sm:col-span-4">
+                <div className="sm:col-span-3">
                   <select
                     value={userRoleFilter}
                     onChange={(e) => setUserRoleFilter(e.target.value)}
+                    aria-label="Filter by role"
                     className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-xs ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
                   >
                     <option value="all">All Roles</option>
                     <option value="employee">Employees Only</option>
                     <option value="team_leader">Team Leaders Only</option>
                     <option value="admin">Admins Only</option>
+                  </select>
+                </div>
+
+                <div className="sm:col-span-3">
+                  <select
+                    value={userStatusFilter}
+                    onChange={(e) => setUserStatusFilter(e.target.value)}
+                    aria-label="Filter by access status"
+                    className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-xs ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    <option value="all">All Statuses</option>
+                    <option value="active">Active</option>
+                    <option value="pending">Pending Invite</option>
+                    <option value="deactivated">Deactivated</option>
                   </select>
                 </div>
               </div>
@@ -744,35 +893,56 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       <th className="px-4 py-3">Role</th>
                       <th className="px-4 py-3">Team Leader</th>
                       <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3">Invited / Joined</th>
                       <th className="px-4 py-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 bg-white">
-                    {filteredProfiles.map((p) => {
-                      const leader = p.role === 'employee' ? getLeaderForEmployee(p.id) : null
+                    {filteredUsers.length === 0 && (
+                      <tr>
+                        <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
+                          No users match these filters.
+                        </td>
+                      </tr>
+                    )}
+
+                    {filteredUsers.map((u) => {
+                      const p = u.profile
+                      const leader = p && p.role === 'employee' ? getLeaderForEmployee(p.id) : null
+                      const isSelf = p?.id === user?.id
+                      const isBusy = busyRowKey === u.key
+                      const isDeactivated = u.kind === 'profile' && u.status === 'deactivated'
 
                       return (
-                        <tr key={p.id} className="hover:bg-slate-50/70 transition-colors">
+                        <tr
+                          key={u.key}
+                          className={cn(
+                            'transition-colors hover:bg-slate-50/70',
+                            isDeactivated && 'bg-rose-50/30'
+                          )}
+                        >
                           <td className="px-4 py-3 whitespace-nowrap">
                             <div className="flex items-center gap-2.5">
-                              <Avatar className="h-8 w-8 ring-1 ring-slate-200">
-                                <AvatarImage src={p.avatar_url} />
+                              <Avatar
+                                className={cn('h-8 w-8 ring-1 ring-slate-200', isDeactivated && 'opacity-60 grayscale')}
+                              >
+                                <AvatarImage src={u.avatar_url} />
                                 <AvatarFallback className="text-xs">
-                                  {p.name.substring(0, 2).toUpperCase()}
+                                  {u.name.substring(0, 2).toUpperCase()}
                                 </AvatarFallback>
                               </Avatar>
-                              <Highlight text={p.name} query={userSearch} className="font-semibold text-slate-800" />
+                              <Highlight text={u.name} query={userSearch} className="font-semibold text-slate-800" />
                             </div>
                           </td>
 
                           <td className="px-4 py-3 whitespace-nowrap text-slate-600">
-                            <Highlight text={p.email} query={userSearch} />
+                            <Highlight text={u.email} query={userSearch} />
                           </td>
 
                           <td className="px-4 py-3 whitespace-nowrap">
-                            {p.role === 'admin' ? (
+                            {u.role === 'admin' ? (
                               <Badge variant="admin">Admin</Badge>
-                            ) : p.role === 'team_leader' ? (
+                            ) : u.role === 'team_leader' ? (
                               <Badge variant="leader">Team Leader</Badge>
                             ) : (
                               <Badge variant="employee">Employee</Badge>
@@ -780,7 +950,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           </td>
 
                           <td className="px-4 py-3 whitespace-nowrap">
-                            {p.role === 'employee' ? (
+                            {u.kind === 'invitation' ? (
+                              <span className="text-slate-400">—</span>
+                            ) : u.role === 'employee' ? (
                               leader ? (
                                 <span className="font-medium text-slate-700">{leader.name}</span>
                               ) : (
@@ -792,52 +964,138 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           </td>
 
                           <td className="px-4 py-3 whitespace-nowrap">
-                            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-600">
-                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                              Active
-                            </span>
+                            <UserStatusBadge user={u} />
+                          </td>
+
+                          <td className="px-4 py-3 whitespace-nowrap text-[11px] text-slate-500">
+                            {u.kind === 'invitation' ? (
+                              <>
+                                Invited {u.invitedAt ? formatDateDDMMYYYY(u.invitedAt.slice(0, 10)) : '—'}
+                                {u.invitationStatus === 'pending' && u.expiresAt && (
+                                  <span className="block text-slate-400">
+                                    Expires {formatDateDDMMYYYY(u.expiresAt.slice(0, 10))}
+                                  </span>
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                Joined {u.activatedAt ? formatDateDDMMYYYY(u.activatedAt.slice(0, 10)) : '—'}
+                                {isDeactivated && u.deactivatedAt && (
+                                  <span className="block text-rose-500">
+                                    Disabled {formatDateDDMMYYYY(u.deactivatedAt.slice(0, 10))}
+                                  </span>
+                                )}
+                              </>
+                            )}
                           </td>
 
                           <td className="px-4 py-3 whitespace-nowrap text-right">
                             <div className="flex items-center justify-end gap-1.5">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setRoleModalUser(p)}
-                                className="h-7 text-[11px] px-2"
-                              >
-                                Change Role
-                              </Button>
-
-                              {p.role === 'employee' && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => setAssignModalEmployee(p)}
-                                  className="h-7 text-[11px] px-2 text-blue-600 border-blue-200 hover:bg-blue-50"
-                                >
-                                  Assign Leader
-                                </Button>
-                              )}
-
-                              {/* Own row: shown but disabled; the wrapper keeps the tooltip working on a disabled button */}
-                              <Hint label={p.id === user?.id ? "You can't delete your own account" : `Delete ${p.name}`}>
-                                <span
-                                  tabIndex={p.id === user?.id ? 0 : undefined}
-                                  className={p.id === user?.id ? 'inline-flex cursor-not-allowed' : 'inline-flex'}
-                                >
+                              {u.kind === 'invitation' ? (
+                                <>
                                   <Button
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => setDeletingUser(p)}
-                                    disabled={p.id === user?.id}
-                                    className="h-7 w-7 p-0 text-slate-400 border-slate-200 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50"
-                                    aria-label={p.id === user?.id ? "You can't delete your own account" : `Delete ${p.name}`}
+                                    onClick={() => handleResendInvite(u)}
+                                    disabled={isBusy}
+                                    className="h-7 gap-1 px-2 text-[11px] text-blue-600 border-blue-200 hover:bg-blue-50"
                                   >
-                                    <Trash2 className="h-3.5 w-3.5" />
+                                    <RefreshCw className={cn('h-3 w-3', isBusy && 'animate-spin')} />
+                                    Resend
                                   </Button>
-                                </span>
-                              </Hint>
+                                  {u.invitationStatus === 'pending' && (
+                                    <Hint label={`Cancel the invitation for ${u.email}`}>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleRevokeInvite(u)}
+                                        disabled={isBusy}
+                                        aria-label={`Cancel the invitation for ${u.email}`}
+                                        className="h-7 w-7 p-0 text-slate-400 border-slate-200 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50"
+                                      >
+                                        <XCircle className="h-3.5 w-3.5" />
+                                      </Button>
+                                    </Hint>
+                                  )}
+                                </>
+                              ) : (
+                                <>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => p && setRoleModalUser(p)}
+                                    className="h-7 text-[11px] px-2"
+                                  >
+                                    Change Role
+                                  </Button>
+
+                                  {u.role === 'employee' && !isDeactivated && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => p && setAssignModalEmployee(p)}
+                                      className="h-7 text-[11px] px-2 text-blue-600 border-blue-200 hover:bg-blue-50"
+                                    >
+                                      Assign Leader
+                                    </Button>
+                                  )}
+
+                                  {/* Own row: shown but disabled; the wrapper keeps the tooltip working on a disabled button */}
+                                  <Hint
+                                    label={
+                                      isSelf
+                                        ? "You can't change your own access"
+                                        : isDeactivated
+                                          ? `Restore access for ${u.name}`
+                                          : `Disable access for ${u.name}`
+                                    }
+                                  >
+                                    <span
+                                      tabIndex={isSelf ? 0 : undefined}
+                                      className={isSelf ? 'inline-flex cursor-not-allowed' : 'inline-flex'}
+                                    >
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleToggleAccess(u)}
+                                        disabled={isSelf || isBusy}
+                                        aria-label={isDeactivated ? `Reactivate ${u.name}` : `Deactivate ${u.name}`}
+                                        className={cn(
+                                          'h-7 gap-1 px-2 text-[11px]',
+                                          isDeactivated
+                                            ? 'text-emerald-600 border-emerald-200 hover:bg-emerald-50'
+                                            : 'text-amber-600 border-amber-200 hover:bg-amber-50'
+                                        )}
+                                      >
+                                        {isDeactivated ? (
+                                          <RotateCcw className="h-3 w-3" />
+                                        ) : (
+                                          <Ban className="h-3 w-3" />
+                                        )}
+                                        {isDeactivated ? 'Reactivate' : 'Deactivate'}
+                                      </Button>
+                                    </span>
+                                  </Hint>
+
+                                  <Hint label={isSelf ? "You can't delete your own account" : `Delete ${u.name}`}>
+                                    <span
+                                      tabIndex={isSelf ? 0 : undefined}
+                                      className={isSelf ? 'inline-flex cursor-not-allowed' : 'inline-flex'}
+                                    >
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => p && setDeletingUser(p)}
+                                        disabled={isSelf}
+                                        className="h-7 w-7 p-0 text-slate-400 border-slate-200 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50"
+                                        aria-label={isSelf ? "You can't delete your own account" : `Delete ${u.name}`}
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </Button>
+                                    </span>
+                                  </Hint>
+                                </>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -846,31 +1104,63 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </tbody>
                 </table>
               </div>
+
               {/* Phones/tablets: stacked cards instead of the wide table */}
               <div className="divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white lg:hidden">
-                {filteredProfiles.map((p) => {
-                  const leader = p.role === 'employee' ? getLeaderForEmployee(p.id) : null
-                  const isSelf = p.id === user?.id
+                {filteredUsers.length === 0 && (
+                  <p className="p-6 text-center text-xs text-slate-400">No users match these filters.</p>
+                )}
+
+                {filteredUsers.map((u) => {
+                  const p = u.profile
+                  const leader = p && p.role === 'employee' ? getLeaderForEmployee(p.id) : null
+                  const isSelf = p?.id === user?.id
+                  const isBusy = busyRowKey === u.key
+                  const isDeactivated = u.kind === 'profile' && u.status === 'deactivated'
+
                   return (
-                    <div key={p.id} className="space-y-2.5 p-3">
+                    <div key={u.key} className={cn('space-y-2.5 p-3', isDeactivated && 'bg-rose-50/30')}>
                       <div className="flex items-center gap-2.5">
-                        <Avatar className="h-9 w-9 shrink-0 ring-1 ring-slate-200">
-                          <AvatarImage src={p.avatar_url} />
-                          <AvatarFallback className="text-xs">{p.name.substring(0, 2).toUpperCase()}</AvatarFallback>
+                        <Avatar
+                          className={cn(
+                            'h-9 w-9 shrink-0 ring-1 ring-slate-200',
+                            isDeactivated && 'opacity-60 grayscale'
+                          )}
+                        >
+                          <AvatarImage src={u.avatar_url} />
+                          <AvatarFallback className="text-xs">{u.name.substring(0, 2).toUpperCase()}</AvatarFallback>
                         </Avatar>
                         <div className="min-w-0 flex-1">
-                          <Highlight text={p.name} query={userSearch} className="block truncate text-sm font-semibold text-slate-800" />
-                          <Highlight text={p.email} query={userSearch} className="block truncate text-[11px] text-slate-500" />
+                          <Highlight
+                            text={u.name}
+                            query={userSearch}
+                            className="block truncate text-sm font-semibold text-slate-800"
+                          />
+                          <Highlight
+                            text={u.email}
+                            query={userSearch}
+                            className="block truncate text-[11px] text-slate-500"
+                          />
                         </div>
-                        {p.role === 'admin' ? (
+                        {u.role === 'admin' ? (
                           <Badge variant="admin">Admin</Badge>
-                        ) : p.role === 'team_leader' ? (
+                        ) : u.role === 'team_leader' ? (
                           <Badge variant="leader">Team Leader</Badge>
                         ) : (
                           <Badge variant="employee">Employee</Badge>
                         )}
                       </div>
-                      {p.role === 'employee' && (
+
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <UserStatusBadge user={u} />
+                        <span className="text-[11px] text-slate-400">
+                          {u.kind === 'invitation'
+                            ? `Invited ${u.invitedAt ? formatDateDDMMYYYY(u.invitedAt.slice(0, 10)) : '—'}`
+                            : `Joined ${u.activatedAt ? formatDateDDMMYYYY(u.activatedAt.slice(0, 10)) : '—'}`}
+                        </span>
+                      </div>
+
+                      {u.kind === 'profile' && u.role === 'employee' && (
                         <p className="text-[11px] text-slate-500">
                           Team Leader:{' '}
                           {leader ? (
@@ -880,34 +1170,89 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           )}
                         </p>
                       )}
+
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <Button variant="outline" size="sm" onClick={() => setRoleModalUser(p)} className="h-8 text-[11px] px-2.5">
-                          Change Role
-                        </Button>
-                        {p.role === 'employee' && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setAssignModalEmployee(p)}
-                            className="h-8 text-[11px] px-2.5 text-blue-600 border-blue-200 hover:bg-blue-50"
-                          >
-                            Assign Leader
-                          </Button>
-                        )}
-                        <Hint label={isSelf ? "You can't delete your own account" : `Delete ${p.name}`}>
-                          <span tabIndex={isSelf ? 0 : undefined} className={isSelf ? 'ml-auto inline-flex cursor-not-allowed' : 'ml-auto inline-flex'}>
+                        {u.kind === 'invitation' ? (
+                          <>
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => setDeletingUser(p)}
-                              disabled={isSelf}
-                              className="h-8 w-8 p-0 text-slate-400 border-slate-200 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50"
-                              aria-label={isSelf ? "You can't delete your own account" : `Delete ${p.name}`}
+                              onClick={() => handleResendInvite(u)}
+                              disabled={isBusy}
+                              className="h-8 gap-1 px-2.5 text-[11px] text-blue-600 border-blue-200 hover:bg-blue-50"
                             >
-                              <Trash2 className="h-3.5 w-3.5" />
+                              <RefreshCw className={cn('h-3 w-3', isBusy && 'animate-spin')} />
+                              Resend Invite
                             </Button>
-                          </span>
-                        </Hint>
+                            {u.invitationStatus === 'pending' && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleRevokeInvite(u)}
+                                disabled={isBusy}
+                                className="h-8 gap-1 px-2.5 text-[11px] text-slate-500 border-slate-200 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50"
+                              >
+                                <XCircle className="h-3 w-3" />
+                                Cancel
+                              </Button>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => p && setRoleModalUser(p)}
+                              className="h-8 text-[11px] px-2.5"
+                            >
+                              Change Role
+                            </Button>
+                            {u.role === 'employee' && !isDeactivated && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => p && setAssignModalEmployee(p)}
+                                className="h-8 text-[11px] px-2.5 text-blue-600 border-blue-200 hover:bg-blue-50"
+                              >
+                                Assign Leader
+                              </Button>
+                            )}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleToggleAccess(u)}
+                              disabled={isSelf || isBusy}
+                              className={cn(
+                                'h-8 gap-1 px-2.5 text-[11px]',
+                                isDeactivated
+                                  ? 'text-emerald-600 border-emerald-200 hover:bg-emerald-50'
+                                  : 'text-amber-600 border-amber-200 hover:bg-amber-50'
+                              )}
+                            >
+                              {isDeactivated ? <RotateCcw className="h-3 w-3" /> : <Ban className="h-3 w-3" />}
+                              {isDeactivated ? 'Reactivate' : 'Deactivate'}
+                            </Button>
+                            <Hint label={isSelf ? "You can't delete your own account" : `Delete ${u.name}`}>
+                              <span
+                                tabIndex={isSelf ? 0 : undefined}
+                                className={
+                                  isSelf ? 'ml-auto inline-flex cursor-not-allowed' : 'ml-auto inline-flex'
+                                }
+                              >
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => p && setDeletingUser(p)}
+                                  disabled={isSelf}
+                                  className="h-8 w-8 p-0 text-slate-400 border-slate-200 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50"
+                                  aria-label={isSelf ? "You can't delete your own account" : `Delete ${u.name}`}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </span>
+                            </Hint>
+                          </>
+                        )}
                       </div>
                     </div>
                   )
@@ -1011,6 +1356,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Invite User Modal */}
+      <InviteUserModal open={isInviteOpen} onOpenChange={setIsInviteOpen} onInvited={loadAllData} />
 
       {/* Role Change Modal */}
       <DeleteUserDialog

@@ -123,6 +123,8 @@ Deno.serve(async (req) => {
     .from('profiles')
     .select('id, name, email, role')
     .in('role', REMINDER_ROLES)
+    // Deactivated accounts have no access, so they get no reminders
+    .eq('status', 'active')
   if (profilesError) {
     return new Response(JSON.stringify({ error: profilesError.message }), { status: 500 })
   }

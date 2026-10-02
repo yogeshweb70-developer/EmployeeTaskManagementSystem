@@ -49,7 +49,10 @@ export const TeamAssignmentModal: React.FC<TeamAssignmentModalProps> = ({
           dataService.getAssignedEmployeeIdsForLeader(leader.id),
         ])
         // Filter out non-employees (only employees can be assigned to a team leader)
-        const employeesOnly = profiles.filter((p) => p.role === 'employee' && p.id !== leader.id)
+        // Deactivated people have no access, so they cannot be put on a roster
+        const employeesOnly = profiles.filter(
+          (p) => p.role === 'employee' && p.id !== leader.id && (p.status ?? 'active') === 'active'
+        )
         setAllEmployees(employeesOnly)
         setSelectedIds(assignedIds)
         setInitialSelectedIds(assignedIds)

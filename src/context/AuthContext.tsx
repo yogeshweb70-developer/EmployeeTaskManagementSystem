@@ -8,11 +8,19 @@ interface AuthContextType {
   isLoading: boolean
   isLiveSupabase: boolean
   approvedDomain: string
-  signInWithGoogle: () => Promise<void>
+  /** Why a signed-in Google account was turned away (deactivated, not invited). */
+  accessError: string | null
+  clearAccessError: () => void
+  signInWithGoogle: (emailHint?: string) => Promise<void>
   signOut: () => Promise<void>
   uploadAvatar: (file: File) => Promise<void>
   resetToGoogleAvatar: () => Promise<void>
 }
+
+const DEACTIVATED_MESSAGE =
+  'Your access to this workspace has been deactivated by an administrator. Contact your admin if you think this is a mistake.'
+const NOT_INVITED_MESSAGE =
+  'This workspace is invite only. Your Google account has no invitation, so no access was granted. Ask an administrator to invite you.'
 
 const AVATAR_BUCKET = 'avatars'
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024
@@ -24,77 +32,64 @@ const CURRENT_USER_STORAGE_KEY = 'tasklog_current_user_v2'
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<Profile | null>(null)
   const [isLoading, setIsLoading] = useState<boolean>(true)
+  const [accessError, setAccessError] = useState<string | null>(null)
   const isLiveSupabase = isSupabaseConfigured()
 
   useEffect(() => {
+    // Access is invite only, so a valid Google session is not enough: the
+    // profile has to exist (the invitation was accepted) and still be active.
+    // Anyone who fails either check is signed out immediately, which is what
+    // stops a deactivated user from reusing a session they already had.
+    async function resolveSession(sessionUser: { id: string; email?: string } | undefined | null) {
+      if (!sessionUser) {
+        setUser(null)
+        return
+      }
+
+      const userEmail = sessionUser.email || ''
+      if (!validateCompanyEmail(userEmail).isValid) {
+        await supabase.auth.signOut()
+        setUser(null)
+        return
+      }
+
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', sessionUser.id)
+        .maybeSingle()
+
+      if (!profileData) {
+        // The sign-in gate refused to create a profile: no invitation
+        await supabase.auth.signOut()
+        setUser(null)
+        setAccessError(NOT_INVITED_MESSAGE)
+        return
+      }
+
+      const profile = profileData as Profile
+      if ((profile.status ?? 'active') !== 'active') {
+        await supabase.auth.signOut()
+        setUser(null)
+        setAccessError(DEACTIVATED_MESSAGE)
+        return
+      }
+
+      setAccessError(null)
+      setUser(profile)
+    }
+
     async function initAuth() {
       setIsLoading(true)
       try {
         if (isLiveSupabase) {
           // Listen to live Supabase Auth session
           const { data: { session } } = await supabase.auth.getSession()
-
-          if (session?.user) {
-            const userEmail = session.user.email || ''
-            const validation = validateCompanyEmail(userEmail)
-
-            if (!validation.isValid) {
-              await supabase.auth.signOut()
-              setUser(null)
-              setIsLoading(false)
-              return
-            }
-
-            // Sync or fetch profile from public.profiles
-            const { data: profileData } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', session.user.id)
-              .single()
-
-            if (profileData) {
-              setUser(profileData as Profile)
-            } else {
-              // Check if this is the first user in the database -> make admin
-              const { count } = await supabase.from('profiles').select('*', { count: 'exact', head: true })
-              const initialRole = count === 0 ? 'admin' : 'employee'
-
-              const newProf: Profile = {
-                id: session.user.id,
-                name: session.user.user_metadata?.name || session.user.user_metadata?.full_name || userEmail.split('@')[0],
-                email: userEmail,
-                avatar_url: session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || '',
-                role: initialRole,
-                created_at: new Date().toISOString(),
-              }
-              // Save to public.profiles
-              await supabase.from('profiles').upsert(newProf)
-              setUser(newProf)
-            }
-          } else {
-            setUser(null)
-          }
+          await resolveSession(session?.user)
 
           // Subscribe to auth state changes
           const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
-            if (newSession?.user) {
-              const email = newSession.user.email || ''
-              const check = validateCompanyEmail(email)
-              if (!check.isValid) {
-                await supabase.auth.signOut()
-                setUser(null)
-                return
-              }
-              const { data: prof } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', newSession.user.id)
-                .single()
-
-              if (prof) setUser(prof as Profile)
-            } else {
-              setUser(null)
-            }
+            await resolveSession(newSession?.user)
           })
 
           return () => {
@@ -108,7 +103,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               const parsed = JSON.parse(saved)
               const profiles = await dataService.getProfiles()
               const matched = profiles.find((p) => p.id === parsed.id)
-              setUser(matched || parsed)
+              const resolved = (matched || parsed) as Profile
+              if ((resolved.status ?? 'active') !== 'active') {
+                localStorage.removeItem(CURRENT_USER_STORAGE_KEY)
+                setUser(null)
+                setAccessError(DEACTIVATED_MESSAGE)
+              } else {
+                setUser(resolved)
+              }
             } catch {
               setUser(null)
             }
@@ -126,8 +128,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     initAuth()
   }, [isLiveSupabase])
 
-  // Google OAuth Login
-  const signInWithGoogle = async () => {
+  // Google OAuth Login. `emailHint` comes from an invitation link, so Google
+  // pre-selects the address the invitation was actually sent to.
+  const signInWithGoogle = async (emailHint?: string) => {
     if (!isLiveSupabase) {
       throw new Error('Supabase project credentials not configured yet. Please enter your Supabase URL and Anon Key.')
     }
@@ -144,6 +147,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           access_type: 'offline',
           prompt: 'consent',
           hd: cleanDomain, // Request Google to show only @zeroado.com accounts
+          ...(emailHint ? { login_hint: emailHint } : {}),
         },
       },
     })
@@ -157,6 +161,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     localStorage.removeItem(CURRENT_USER_STORAGE_KEY)
     setUser(null)
+    setAccessError(null)
   }
 
   // Save a new avatar URL on the profile and in local state
@@ -217,6 +222,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isLoading,
         isLiveSupabase,
         approvedDomain: APPROVED_DOMAIN,
+        accessError,
+        clearAccessError: () => setAccessError(null),
         signInWithGoogle,
         signOut,
         uploadAvatar,

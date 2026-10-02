@@ -1,6 +1,12 @@
 -- ==============================================================================
 -- Employee Task Log Management System - Supabase PostgreSQL Schema & RLS Policies
 -- ==============================================================================
+-- IMPORTANT: run supabase/invite_access.sql straight after this file.
+-- Access is invite-only. invite_access.sql replaces the handle_new_user trigger
+-- and the RLS policies below with invite-aware versions, and adds the
+-- invitations / access_events tables. On its own, this file still allows any
+-- @zeroado.com Google account to self-register.
+-- ==============================================================================
 
 -- 1. Create Enums and Extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";

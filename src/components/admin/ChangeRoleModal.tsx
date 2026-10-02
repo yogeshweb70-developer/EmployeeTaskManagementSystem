@@ -48,7 +48,9 @@ export const ChangeRoleModal: React.FC<ChangeRoleModalProps> = ({
       if (!open || !userToEdit) return
       try {
         const profiles = await dataService.getProfiles()
-        const emps = profiles.filter((p) => p.role === 'employee' && p.id !== userToEdit.id)
+        const emps = profiles.filter(
+          (p) => p.role === 'employee' && p.id !== userToEdit.id && (p.status ?? 'active') === 'active'
+        )
         setAllEmployees(emps)
 
         // If user is currently a team leader, fetch their current team

@@ -39,7 +39,7 @@ export const AssignLeaderModal: React.FC<AssignLeaderModalProps> = ({
       if (!open || !employee) return
       try {
         const profiles = await dataService.getProfiles()
-        const teamLeaders = profiles.filter((p) => p.role === 'team_leader')
+        const teamLeaders = profiles.filter((p) => p.role === 'team_leader' && (p.status ?? 'active') === 'active')
         setLeaders(teamLeaders)
         setSelectedLeaderId(employee.assigned_leader?.id || '')
         setError(null)

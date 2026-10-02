@@ -1,5 +1,7 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
+import { dataService } from '@/services/dataService'
+import { InvitationPreview } from '@/types'
 import { isSupabaseConfigured, saveSupabaseCredentials } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -18,20 +20,73 @@ import {
   AlertCircle,
   Lock,
   Database,
-  ExternalLink,
   KeyRound,
+  MailCheck,
+  CalendarClock,
+  Ban,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
+// The database refuses to create a profile for an uninvited or deactivated
+// account, which Supabase surfaces as an opaque "Database error". Turn the
+// known cases back into something the person can act on.
+function humanizeAuthError(raw: string): string {
+  const text = raw.toLowerCase()
+  if (text.includes('invitation required') || text.includes('has not been invited')) {
+    return 'This workspace is invite only. Your Google account has no invitation yet, so access was not granted. Ask an administrator to invite you.'
+  }
+  if (text.includes('access revoked') || text.includes('deactivated')) {
+    return 'Your access to this workspace has been deactivated by an administrator.'
+  }
+  if (text.includes('access denied') || text.includes('are permitted to authenticate')) {
+    return raw
+  }
+  if (text.includes('database error') || text.includes('unexpected_failure')) {
+    return 'Sign-in was refused. This workspace is invite only, and deactivated accounts are blocked. Ask an administrator for an invitation.'
+  }
+  return raw
+}
+
 export const LoginPage: React.FC = () => {
-  const { signInWithGoogle, approvedDomain, isLiveSupabase } = useAuth()
+  const { signInWithGoogle, approvedDomain, isLiveSupabase, accessError } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
   // Show OAuth errors Supabase returns in the redirect URL (?error_description=... or #error_description=...)
   const [errorMessage, setErrorMessage] = useState<string | null>(() => {
     const params = new URLSearchParams(window.location.search || window.location.hash.slice(1))
     const oauthError = params.get('error_description') || params.get('error')
-    return oauthError ? decodeURIComponent(oauthError.replace(/\+/g, ' ')) : null
+    return oauthError ? humanizeAuthError(decodeURIComponent(oauthError.replace(/\+/g, ' '))) : null
   })
+
+  // Invitation link: /?invite=<token>
+  const [inviteToken] = useState<string>(() => new URLSearchParams(window.location.search).get('invite') || '')
+  const [invitation, setInvitation] = useState<InvitationPreview | null>(null)
+  const [isInviteLoading, setIsInviteLoading] = useState<boolean>(Boolean(inviteToken))
+  const [inviteLookupFailed, setInviteLookupFailed] = useState(false)
+
+  useEffect(() => {
+    if (!inviteToken) return
+    let cancelled = false
+
+    dataService
+      .getInvitationByToken(inviteToken)
+      .then((found) => {
+        if (cancelled) return
+        setInvitation(found)
+        setInviteLookupFailed(!found)
+      })
+      .catch(() => {
+        if (!cancelled) setInviteLookupFailed(true)
+      })
+      .finally(() => {
+        if (!cancelled) setIsInviteLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [inviteToken])
+
+  const isInvitationUsable = invitation?.status === 'pending'
 
   // Supabase credentials modal (for connecting if not already in .env)
   const [isConnectModalOpen, setIsConnectModalOpen] = useState(false)
@@ -47,9 +102,9 @@ export const LoginPage: React.FC = () => {
         setIsLoading(false)
         return
       }
-      await signInWithGoogle()
+      await signInWithGoogle(isInvitationUsable ? invitation?.email : undefined)
     } catch (err: any) {
-      setErrorMessage(err.message || 'Google authentication failed')
+      setErrorMessage(humanizeAuthError(err.message || 'Google authentication failed'))
       toast.error('Authentication Error', { description: err.message })
     } finally {
       setIsLoading(false)
@@ -90,18 +145,84 @@ export const LoginPage: React.FC = () => {
         {/* Main Login Card */}
         <Card className="border border-slate-200/90 bg-white shadow-xl shadow-slate-200/50">
           <CardHeader className="text-center pb-4">
-            <CardTitle className="text-lg font-bold text-slate-900">Sign in to your account</CardTitle>
+            <CardTitle className="text-lg font-bold text-slate-900">
+              {isInvitationUsable ? 'Accept your invitation' : 'Sign in to your account'}
+            </CardTitle>
             <CardDescription className="text-xs">
-              Access is restricted strictly to verified{' '}
-              <span className="font-semibold text-blue-600 font-mono">{approvedDomain}</span> accounts.
+              {isInvitationUsable ? (
+                <>
+                  Finish setting up access by signing in with the Google account for{' '}
+                  <span className="font-semibold text-blue-600 font-mono">{invitation?.email}</span>.
+                </>
+              ) : (
+                <>
+                  This workspace is invite only. Access is restricted to invited{' '}
+                  <span className="font-semibold text-blue-600 font-mono">{approvedDomain}</span> accounts.
+                </>
+              )}
             </CardDescription>
           </CardHeader>
 
           <CardContent className="space-y-4">
+            {/* Signed in with Google, but turned away by the access rules */}
+            {accessError && !errorMessage && (
+              <div className="flex items-start gap-2.5 rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
+                <Ban className="h-4 w-4 shrink-0 text-rose-600 mt-0.5" />
+                <span className="leading-relaxed">{accessError}</span>
+              </div>
+            )}
+
             {errorMessage && (
               <div className="flex items-start gap-2.5 rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
                 <AlertCircle className="h-4 w-4 shrink-0 text-rose-600 mt-0.5" />
                 <span className="leading-relaxed">{errorMessage}</span>
+              </div>
+            )}
+
+            {/* Invitation landing state */}
+            {inviteToken && isInviteLoading && (
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-500">
+                Checking your invitation…
+              </div>
+            )}
+
+            {isInvitationUsable && invitation && (
+              <div className="space-y-1.5 rounded-lg border border-blue-200 bg-blue-50/70 p-3 text-xs text-blue-900">
+                <div className="flex items-center gap-2 font-semibold">
+                  <MailCheck className="h-4 w-4 shrink-0 text-blue-600" />
+                  <span>You have been invited, {invitation.name.split(' ')[0]}</span>
+                </div>
+                <p className="leading-relaxed text-blue-800/90">
+                  The invitation was sent to{' '}
+                  <strong className="font-mono font-semibold">{invitation.email}</strong>. Sign in with that exact
+                  Google account to activate your access.
+                </p>
+                <p className="flex items-center gap-1.5 text-[11px] text-blue-700/80">
+                  <CalendarClock className="h-3 w-3 shrink-0" />
+                  Expires on{' '}
+                  {new Date(invitation.expires_at).toLocaleDateString(undefined, {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric',
+                  })}
+                </p>
+              </div>
+            )}
+
+            {inviteToken && !isInviteLoading && !isInvitationUsable && (
+              <div className="flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                <AlertCircle className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
+                <span className="leading-relaxed">
+                  {invitation?.status === 'accepted'
+                    ? 'This invitation has already been accepted. Just sign in with Google to continue.'
+                    : invitation?.status === 'revoked'
+                      ? 'This invitation was cancelled by an administrator. Ask them to send a new one.'
+                      : invitation?.status === 'expired'
+                        ? 'This invitation link has expired. Ask an administrator to resend it.'
+                        : inviteLookupFailed
+                          ? 'This invitation link is not valid any more. Ask an administrator to resend it.'
+                          : 'This invitation link cannot be used.'}
+                </span>
               </div>
             )}
 
@@ -132,7 +253,7 @@ export const LoginPage: React.FC = () => {
                     d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                   />
                 </svg>
-                <span>Continue with Google</span>
+                <span>{isInvitationUsable ? 'Accept invitation with Google' : 'Continue with Google'}</span>
               </Button>
 
               <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-400">
@@ -164,10 +285,12 @@ export const LoginPage: React.FC = () => {
             <div className="w-full rounded-lg bg-slate-50 border border-slate-200/70 p-3 text-slate-600 text-xs space-y-1">
               <div className="flex items-center gap-1.5 font-semibold text-slate-800 text-[11px]">
                 <ShieldCheck className="h-3.5 w-3.5 text-blue-600" />
-                <span>Domain Policy: {approvedDomain}</span>
+                <span>Access Policy: invite only &middot; {approvedDomain}</span>
               </div>
               <p className="text-[11px] text-slate-500 leading-relaxed">
-                Only email addresses belonging to <strong className="text-slate-800">{approvedDomain}</strong> are authorized to access this portal. Personal Google accounts or outside email domains will be rejected automatically.
+                There is no self sign-up. An administrator has to invite you first, and the invitation is tied to one{' '}
+                <strong className="text-slate-800">{approvedDomain}</strong> address. Uninvited accounts, outside email
+                domains and accounts an administrator has deactivated are all rejected automatically.
               </p>
             </div>
           </CardFooter>

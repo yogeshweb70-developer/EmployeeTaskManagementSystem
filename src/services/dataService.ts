@@ -1,11 +1,26 @@
-import { Profile, TaskLog, TeamAssignment, UserRole, TaskFilterOptions, DashboardMetrics } from '@/types'
+import {
+  Profile,
+  TaskLog,
+  TeamAssignment,
+  UserRole,
+  UserStatus,
+  TaskFilterOptions,
+  DashboardMetrics,
+  Invitation,
+  InviteResult,
+  InvitationPreview,
+  ManagedUser,
+} from '@/types'
 import { INITIAL_PROFILES, INITIAL_ASSIGNMENTS, INITIAL_TASKS } from '@/lib/mockData'
-import { isSupabaseConfigured, supabase } from '@/lib/supabase'
+import { isSupabaseConfigured, supabase, validateCompanyEmail } from '@/lib/supabase'
 import { getTodayDateString } from '@/lib/utils'
 
 const PROFILES_STORAGE_KEY = 'tasklog_profiles_v1'
 const ASSIGNMENTS_STORAGE_KEY = 'tasklog_assignments_v1'
 const TASKS_STORAGE_KEY = 'tasklog_tasks_v1'
+const INVITATIONS_STORAGE_KEY = 'tasklog_invitations_v1'
+
+const INVITE_VALID_DAYS = 7
 
 // Local storage helpers
 function getStoredProfiles(): Profile[] {
@@ -57,6 +72,91 @@ function getStoredTasks(): TaskLog[] {
 
 function saveTasks(tasks: TaskLog[]): void {
   localStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(tasks))
+}
+
+// supabase.functions.invoke() reports a non-2xx reply as a generic
+// "Edge Function returned a non-2xx status code". The real reason is in the
+// response body, so pull it out and show that instead.
+async function readFunctionError(error: unknown, fallback: string): Promise<string> {
+  const context = (error as { context?: Response }).context
+
+  if (context && typeof context.json === 'function') {
+    // A function that was never deployed 404s without CORS headers, so the
+    // browser reports a network failure rather than the status
+    if (context.status === 404) {
+      return 'The invite-user Edge Function is not deployed on this Supabase project. Run: supabase functions deploy invite-user'
+    }
+    try {
+      const body = await context.json()
+      if (body?.error) return String(body.error)
+    } catch {
+      // Body was not JSON; fall through to the generic message
+    }
+  }
+
+  // FunctionsFetchError: the request never got a response at all
+  const message = error instanceof Error ? error.message : ''
+  if (/failed to send a request|failed to fetch|networkerror/i.test(message)) {
+    return 'Could not reach the invite-user Edge Function. It is most likely not deployed yet — run: supabase functions deploy invite-user (and set the SMTP_USER, SMTP_PASS and APP_URL secrets).'
+  }
+
+  return message || fallback
+}
+
+// Invitations are only persisted locally when Supabase is not configured, so the
+// demo mode still behaves like an invite-only workspace.
+function getStoredInvitations(): Invitation[] {
+  try {
+    return JSON.parse(localStorage.getItem(INVITATIONS_STORAGE_KEY) || '[]')
+  } catch {
+    return []
+  }
+}
+
+function saveInvitations(invitations: Invitation[]): void {
+  localStorage.setItem(INVITATIONS_STORAGE_KEY, JSON.stringify(invitations))
+}
+
+// A pending invitation that has run out of time counts as expired everywhere
+function withExpiry(invitation: Invitation): Invitation {
+  if (invitation.status === 'pending' && new Date(invitation.expires_at).getTime() <= Date.now()) {
+    return { ...invitation, status: 'expired' }
+  }
+  return invitation
+}
+
+function profileToManagedUser(profile: Profile): ManagedUser {
+  return {
+    key: `profile-${profile.id}`,
+    kind: 'profile',
+    name: profile.name,
+    email: profile.email,
+    avatar_url: profile.avatar_url,
+    role: profile.role,
+    status: profile.status ?? 'active',
+    invitedAt: profile.invited_at ?? null,
+    activatedAt: profile.activated_at ?? profile.created_at,
+    deactivatedAt: profile.deactivated_at ?? null,
+    profile,
+  }
+}
+
+function invitationToManagedUser(invitation: Invitation): ManagedUser {
+  return {
+    key: `invitation-${invitation.id}`,
+    kind: 'invitation',
+    name: invitation.name,
+    email: invitation.email,
+    avatar_url: '',
+    role: invitation.role,
+    status: 'pending',
+    invitationStatus: invitation.status,
+    invitedAt: invitation.created_at,
+    activatedAt: null,
+    expiresAt: invitation.expires_at,
+    sendCount: invitation.send_count,
+    invitation,
+  }
 }
 
 // Reset data to initial mock
@@ -173,6 +273,189 @@ export const dataService = {
       getStoredAssignments().filter((a) => a.employee_id !== targetUserId && a.team_leader_id !== targetUserId)
     )
     saveTasks(getStoredTasks().filter((t) => t.user_id !== targetUserId))
+  },
+
+  // --------------------------------------------------------------------------
+  // INVITATIONS & ACCESS STATUS
+  // --------------------------------------------------------------------------
+
+  // Every invitation ever sent, newest first. Admin only.
+  async getInvitations(): Promise<Invitation[]> {
+    if (isSupabaseConfigured()) {
+      const { data, error } = await supabase.rpc('admin_list_invitations')
+      if (error) throw error
+      return ((data ?? []) as Invitation[]).map(withExpiry)
+    }
+
+    return getStoredInvitations()
+      .map(withExpiry)
+      .sort((a, b) => b.created_at.localeCompare(a.created_at))
+  },
+
+  // One row per person for the User Management table: existing accounts first,
+  // then invitations that have not been accepted yet. An accepted invitation is
+  // never listed twice, because the account it created takes its place.
+  async getManagedUsers(): Promise<ManagedUser[]> {
+    const profiles = await this.getProfiles()
+    const profileEmails = new Set(profiles.map((p) => p.email.toLowerCase()))
+
+    let invitations: Invitation[] = []
+    try {
+      invitations = await this.getInvitations()
+    } catch (err) {
+      // Non-admins cannot read invitations; the account list is still useful
+      console.warn('Could not load invitations:', err)
+    }
+
+    const outstanding = invitations.filter(
+      (inv) => inv.status !== 'accepted' && !profileEmails.has(inv.email.toLowerCase())
+    )
+
+    return [...profiles.map(profileToManagedUser), ...outstanding.map(invitationToManagedUser)]
+  },
+
+  // Creates (or refreshes) the invitation and emails the link
+  async inviteUser(name: string, email: string, role: UserRole = 'employee'): Promise<InviteResult> {
+    const cleanName = name.trim()
+    const cleanEmail = email.trim().toLowerCase()
+
+    if (!cleanName) throw new Error('Please enter the name of the person you are inviting.')
+
+    const emailCheck = validateCompanyEmail(cleanEmail)
+    if (!emailCheck.isValid) throw new Error(emailCheck.message || 'Please enter a valid company email address.')
+
+    if (isSupabaseConfigured()) {
+      const { data, error } = await supabase.functions.invoke('invite-user', {
+        body: { action: 'invite', name: cleanName, email: cleanEmail, role },
+      })
+      if (error) throw new Error(await readFunctionError(error, 'The invitation could not be sent.'))
+      if (data?.error) throw new Error(data.error)
+      return data as InviteResult
+    }
+
+    // Local-only mode: no email is sent, the admin shares the link by hand
+    const profiles = getStoredProfiles()
+    if (profiles.some((p) => p.email.toLowerCase() === cleanEmail)) {
+      throw new Error(`${cleanEmail} already has an account.`)
+    }
+
+    const invitations = getStoredInvitations()
+    const now = new Date()
+    const expiresAt = new Date(now.getTime() + INVITE_VALID_DAYS * 86_400_000).toISOString()
+    const token = `local-${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`
+    const existing = invitations.find((inv) => inv.email === cleanEmail)
+
+    const invitation: Invitation = {
+      id: existing?.id ?? `invite-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      name: cleanName,
+      email: cleanEmail,
+      role,
+      status: 'pending',
+      send_count: (existing?.send_count ?? 0) + 1,
+      created_at: existing?.created_at ?? now.toISOString(),
+      last_sent_at: now.toISOString(),
+      expires_at: expiresAt,
+      link_opened_at: null,
+      accepted_at: null,
+      revoked_at: null,
+    }
+
+    saveInvitations([...invitations.filter((inv) => inv.email !== cleanEmail), invitation])
+
+    return {
+      invitation_id: invitation.id,
+      name: invitation.name,
+      email: invitation.email,
+      expires_at: invitation.expires_at,
+      invite_link: `${window.location.origin}/?invite=${token}`,
+      emailed: false,
+      email_error: 'Connect Supabase to send invitation emails. Share this link instead.',
+    }
+  },
+
+  // Issues a fresh link for an invitation that was never accepted
+  async resendInvitation(invitationId: string): Promise<InviteResult> {
+    if (isSupabaseConfigured()) {
+      const { data, error } = await supabase.functions.invoke('invite-user', {
+        body: { action: 'resend', invitationId },
+      })
+      if (error) throw new Error(await readFunctionError(error, 'The invitation could not be resent.'))
+      if (data?.error) throw new Error(data.error)
+      return data as InviteResult
+    }
+
+    const invitation = getStoredInvitations().find((inv) => inv.id === invitationId)
+    if (!invitation) throw new Error('Invitation not found.')
+    return this.inviteUser(invitation.name, invitation.email, invitation.role)
+  },
+
+  async revokeInvitation(invitationId: string): Promise<void> {
+    if (isSupabaseConfigured()) {
+      const { error } = await supabase.rpc('admin_revoke_invitation', { p_invitation_id: invitationId })
+      if (error) throw error
+      return
+    }
+
+    saveInvitations(
+      getStoredInvitations().map((inv) =>
+        inv.id === invitationId ? { ...inv, status: 'revoked', revoked_at: new Date().toISOString() } : inv
+      )
+    )
+  },
+
+  // Deactivate or reactivate an account that already exists
+  async setUserStatus(targetUserId: string, status: UserStatus, requesterId: string, requesterRole: UserRole): Promise<void> {
+    if (requesterRole !== 'admin') {
+      throw new Error('Unauthorized: Only administrators can change a user’s access.')
+    }
+    if (targetUserId === requesterId) {
+      throw new Error('You cannot change your own access status.')
+    }
+
+    if (isSupabaseConfigured()) {
+      const { error } = await supabase.rpc('admin_set_user_status', {
+        p_user_id: targetUserId,
+        p_status: status,
+      })
+      if (error) throw error
+      return
+    }
+
+    const profiles = getStoredProfiles()
+    const index = profiles.findIndex((p) => p.id === targetUserId)
+    if (index === -1) throw new Error('User not found.')
+
+    profiles[index] = {
+      ...profiles[index],
+      status,
+      deactivated_at: status === 'deactivated' ? new Date().toISOString() : null,
+      activated_at: profiles[index].activated_at ?? new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+    saveProfiles(profiles)
+  },
+
+  // Used by the invitation landing page before the invitee has signed in
+  async getInvitationByToken(token: string): Promise<InvitationPreview | null> {
+    if (!token) return null
+
+    if (isSupabaseConfigured()) {
+      const { data, error } = await supabase.rpc('get_invitation_by_token', { p_token: token })
+      if (error) {
+        console.warn('Could not resolve invitation token:', error)
+        return null
+      }
+      const row = Array.isArray(data) ? data[0] : data
+      if (!row) return null
+      return {
+        name: row.invite_name,
+        email: row.invite_email,
+        status: row.invite_status,
+        expires_at: row.expires_at,
+      }
+    }
+
+    return null
   },
 
   // --------------------------------------------------------------------------
@@ -639,8 +922,17 @@ export const dataService = {
     const tasks = await this.getTaskLogs('admin', 'admin')
     const today = getTodayDateString()
 
-    const employees = profiles.filter((p) => p.role === 'employee')
-    const teamLeaders = profiles.filter((p) => p.role === 'team_leader')
+    // Headcount reflects people who can actually get in right now
+    const isActive = (p: Profile) => (p.status ?? 'active') === 'active'
+    const employees = profiles.filter((p) => p.role === 'employee' && isActive(p))
+    const teamLeaders = profiles.filter((p) => p.role === 'team_leader' && isActive(p))
+
+    let pendingInvites = 0
+    try {
+      pendingInvites = (await this.getInvitations()).filter((inv) => inv.status === 'pending').length
+    } catch {
+      pendingInvites = 0
+    }
 
     const todayTasks = tasks.filter((t) => t.work_date === today)
     const todayMinutes = todayTasks.reduce((acc, t) => acc + t.duration_minutes, 0)
@@ -650,6 +942,8 @@ export const dataService = {
       totalTeamLeaders: teamLeaders.length,
       todayLoggedMinutes: todayMinutes,
       todayTasksCount: todayTasks.length,
+      pendingInvites,
+      deactivatedUsers: profiles.filter((p) => p.status === 'deactivated').length,
     }
   },
 }
